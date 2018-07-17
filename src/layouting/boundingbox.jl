@@ -3,7 +3,7 @@
 Calculates the exact boundingbox of a Scene/Plot
 """
 function boundingbox(x)
-    data_limits(x)
+    modelmatrix(x)[] * data_limits(x)
 end
 
 boundingbox(x::Combined) = boundingbox(x.plots)
@@ -74,5 +74,5 @@ function boundingbox(text::String, position, textsize, font, align, rotation, mo
             c, text_state = next(text, text_state)
         end
     end
-    FRect3D(minimum(bb) .- (widths(bb) .* aoffsetn), widths(bb))
+    bb = FRect3D(minimum(bb) .- (widths(bb) .* aoffsetn), widths(bb))
 end

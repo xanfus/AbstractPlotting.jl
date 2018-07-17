@@ -12,6 +12,7 @@ mutable struct Scene <: AbstractScene
     plots::Vector{AbstractPlot}
     theme::Attributes
     children::Vector{Scene}
+    parent::Ref{Scene}
     current_screens::Vector{AbstractScreen}
 
     function Scene(
@@ -26,7 +27,7 @@ mutable struct Scene <: AbstractScene
             children::Vector{Scene},
             current_screens::Vector{AbstractScreen},
         )
-        obj = new(events, px_area, camera, camera_controls, limits, transformation, plots, theme, children, current_screens)
+        obj = new(events, px_area, camera, camera_controls, limits, transformation, plots, theme, children, Ref{Scene}(), current_screens)
         jl_finalizer(obj) do obj
             # save_print("Freeing scene")
             close_all_nodes(obj.events)
@@ -52,9 +53,43 @@ Base.length(scene::Scene) = length(scene.plots)
 Base.endof(scene::Scene) = length(scene.plots)
 getindex(scene::Scene, idx::Integer) = scene.plots[idx]
 GeometryTypes.widths(scene::Scene) = widths(to_value(pixelarea(scene)))
-struct Axis end
 
 child(scene::Scene) = Scene(scene, pixelarea(scene))
+hasparent(scene::Scene) = isassigned(scene.parent)
+function Base.parent(scene::Scene)
+    hasparent(scene) || return nothing
+    scene.parent[]
+end
+
+
+function disconnect!(scene::Scene)
+    # nothing to do if scene doesn't have a parent.
+    # scenes should always just get connected to a parent!
+    hasparent(scene) || return
+    p = parent(scene)
+
+end
+function connect!(scene::Scene, child::Scene)
+    nodes = map(fieldnames(Events)) do field
+        if field != :window_area
+            foreach(getfield(pscene.events, field)) do val
+                push!(getfield(p.events, field), val)
+            end
+        end
+    end
+    nodes = map([:view, :projection, :projectionview, :resolution, :eyeposition]) do field
+        lift(getfield(scene.camera, field)) do val
+            push!(getfield(child.camera, field), val)
+        end
+    end
+end
+
+function Base.push!(scene::Scene, child::Scene)
+    push!(scene.children, child)
+    disconnect!(child.camera)
+
+    cameracontrols!(child, nodes)
+end
 
 """
 Creates a subscene with a pixel camera
@@ -69,6 +104,8 @@ function campixel(scene::Scene)
     campixel!(sub)
     sub
 end
+
+struct Axis end
 
 function getindex(scene::Scene, ::Type{Axis})
     for plot in scene
@@ -120,20 +157,6 @@ function Base.push!(scene::Scene, plot::Combined)
     end
 end
 
-function connect!(scene::Scene, child::Scene)
-
-end
-
-function Base.push!(scene::Scene, child::Scene)
-    push!(scene.children, child)
-    disconnect!(child.camera)
-    nodes = map([:view, :projection, :projectionview, :resolution, :eyeposition]) do field
-        lift(getfield(scene.camera, field)) do val
-            push!(getfield(child.camera, field), val)
-        end
-    end
-    cameracontrols!(child, nodes)
-end
 
 events(scene::Scene) = scene.events
 events(scene::SceneLike) = events(scene.parent)
