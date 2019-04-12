@@ -471,3 +471,26 @@ to_plotspec(::Type{P}, p::PlotSpec{S}; kwargs...) where {P, S} =
     PlotSpec{plottype(P, S)}(p.args...; p.kwargs..., kwargs...)
 
 plottype(::PlotSpec{P}) where {P} = P
+
+
+abstract type AbstractPlotList{T<:Tuple} end
+
+plottype(::Type{<:AbstractPlotList{T}}) where {T} = T.parameters
+
+"""
+`Plotlist(plots...)`
+
+Experimental feature. Create an object that can encode multiple series.
+"""
+struct PlotList{T<:Tuple} <: AbstractPlotList{T}
+    plots::Tuple
+    function PlotList(plots...)
+        T = Tuple{unique(plottype.(plots))...}
+        new{T}(plots)
+    end
+end
+
+
+Base.getindex(m::PlotList, i) = getindex(m.plots, i)
+Base.length(m::PlotList) = length(m.plots)
+Base.iterate(m::PlotList, args...) = iterate(m.plots, args...)

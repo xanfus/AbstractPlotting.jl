@@ -441,7 +441,7 @@ end
 """
 plottype(P1::Type{<: Combined{Any}}, P2::Type{<: Combined{T}}) where T = P2
 plottype(P1::Type{<: Combined{T}}, P2::Type{<: Combined}) where T = P1
-plottype(P1::Type{<: Combined}, P2::Type{<: Combined{Any, <: Tuple{T}}}) where T <: PlotList = Combined{Any, T}
+plottype(P1::Type{<: Combined{T1}}, P2::Type{<: Combined{Any, <: Tuple{T}}}) where {T1, T <: PlotList} = Combined{Any, T}
 
 
 """
@@ -485,7 +485,6 @@ function plot!(scene::SceneLike, P::PlotFunc, attributes::Attributes, args...; k
     attributes = merge!(Attributes(kw_attributes), attributes)
     argvalues = to_value.(args)
     PreType = plottype(P, argvalues...)
-    @show PreType
     # plottype will lose the argument types, so we just extract the plot func
     # type and recreate the type with the argument type
     PreType = Combined{plotfunc(PreType), typeof(argvalues)}
@@ -501,7 +500,6 @@ function plot!(scene::SceneLike, P::PlotFunc, attributes::Attributes, args...; k
     # apply_conversion deals with that!
 
     FinalType, argsconverted = apply_convert!(PreType, attributes, converted)
-    @show FinalType
     converted_node = Node(argsconverted)
     input_nodes =  to_node.(args)
     onany(kw_signal, lift(tuple, input_nodes...)) do kwargs, args

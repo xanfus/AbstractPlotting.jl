@@ -1,24 +1,3 @@
-abstract type AbstractPlotList{T<:Tuple} end
-
-plottype(::Type{<:AbstractPlotList{T}}) where {T} = T.parameters
-
-"""
-`Plotlist(plots...)`
-
-Experimental feature. Create an object that can encode multiple series.
-"""
-struct PlotList{T<:Tuple} <: AbstractPlotList{T}
-    plots::Tuple
-    function PlotList(plots...)
-        T = Tuple{unique(plottype.(plots))...}
-        new{T}(plots)
-    end
-end
-
-
-Base.getindex(m::PlotList, i) = getindex(m.plots, i)
-Base.length(m::PlotList) = length(m.plots)
-Base.iterate(m::PlotList, args...) = iterate(m.plots, args...)
 
 @recipe(MultiplePlot) do scene
     default_theme(scene)
@@ -41,7 +20,6 @@ function combine!(theme1::Theme, theme2::Theme)
 end
 combine(theme1::Theme, theme2) = combine!(copy(theme1), theme2)
 
-convert_arguments(P, p::PlotList) = (println("hi"); PlotSpec{Any}(p))
 
 
 # This allows plotting an arbitrary combination of series form one argument
