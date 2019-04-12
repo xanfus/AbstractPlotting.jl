@@ -27,18 +27,6 @@ end
 function default_theme(scene, ::Type{<:Combined{multipleplot, Tuple{P}}}) where {P<:AbstractPlotList}
     merge((default_theme(scene, pt) for pt in plottype(P))...)
 end
-# Allow MultiplePlot to prevail on user input: the plot type of each series will be defined in convert_arguments
-plottype(::Type{<: Combined{Any}}, A::Type{<:MultiplePlot}, argvalues...) = A
-plottype(::Type{<: Combined{T}}, A::Type{<:MultiplePlot}, argvalues...) where T = A
-
-function convert_arguments(P::PlotFunc, m::PlotList)
-    function convert_series(plot::PlotSpec)
-        ptype = plottype(P, plottype(plot))
-        to_plotspec(ptype, convert_arguments(ptype, plot.args...); plot.kwargs...)
-    end
-    pl = PlotList(convert_series.(m.plots)...)
-    PlotSpec{MultiplePlot}(pl)
-end
 
 combine(val1, val2; palette = nothing) = val2
 
@@ -53,10 +41,13 @@ function combine!(theme1::Theme, theme2::Theme)
 end
 combine(theme1::Theme, theme2) = combine!(copy(theme1), theme2)
 
+convert_arguments(P, p::PlotList) = (println("hi"); PlotSpec{Any}(p))
+
+
 # This allows plotting an arbitrary combination of series form one argument
 # The recipe framework can be constructed using this as a building block and computing
 # PlotList with convert_arguments
-function plot!(p::Combined{multipleplot, <:Tuple{PlotList}})
+function plot!(p::Plot(PlotList))
     mp = to_value(p[1]) # TODO how to preserve interactivity here, as number of series may change?
     theme = Theme(p)
     for s in mp.plots
