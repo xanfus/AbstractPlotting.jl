@@ -4,7 +4,7 @@ using Observables, GeometryTypes, StaticArrays, ColorTypes, Colors, IntervalSets
 using ColorBrewer, FixedPointNumbers, Packing, SignedDistanceFields
 using Markdown # documentation
 using Serialization # serialize events
-
+using StructArrays
 # Text related packages
 using FreeType, FreeTypeAbstraction, UnicodeFun
 using LinearAlgebra, Statistics
@@ -116,6 +116,9 @@ export dropped_files
 export hasfocus
 export entered_window
 export disconnect!, must_update, force_update!, update!, update_limits!
+
+# currently special-cased functions (`textslider`) for example
+export textslider
 
 
 # gui

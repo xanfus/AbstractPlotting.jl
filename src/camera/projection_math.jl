@@ -22,11 +22,11 @@ function translationmatrix(t::Vec{3, T}) where T
     )
 end
 
-rotate(angle::T, axis::Vec{3, T}) where {T} = rotationmatrix4(qrotation(convert(Array, axis), angle))
+rotate(angle, axis::Vec{3}) = rotationmatrix4(qrotation(convert(Array, axis), angle))
 rotate(::Type{T}, angle::Number, axis::Vec{3}) where {T} = rotate(T(angle), convert(Vec{3, T}, axis))
 
-function rotationmatrix_x(angle::T) where T
-    T0, T1 = zero(T), one(T)
+function rotationmatrix_x(angle::Number)
+    T0, T1 = (0, 1)
     Mat{4}(
         T1, T0, T0, T0,
         T0, cos(angle), sin(angle), T0,
@@ -34,8 +34,8 @@ function rotationmatrix_x(angle::T) where T
         T0, T0, T0, T1
     )
 end
-function rotationmatrix_y(angle::T) where T
-    T0, T1 = zero(T), one(T)
+function rotationmatrix_y(angle::Number)
+    T0, T1 = (0, 1)
     Mat{4}(
         cos(angle), T0, -sin(angle),  T0,
         T0, T1, T0, T0,
@@ -43,8 +43,8 @@ function rotationmatrix_y(angle::T) where T
         T0, T0, T0, T1
     )
 end
-function rotationmatrix_z(angle::T) where T
-    T0, T1 = zero(T), one(T)
+function rotationmatrix_z(angle::Number)
+    T0, T1 = (0, 1)
     Mat{4}(
         cos(angle), sin(angle), T0, T0,
         -sin(angle), cos(angle),  T0, T0,
@@ -212,11 +212,36 @@ function transformationmatrix(translation, scale)
 end
 
 function transformationmatrix(translation, scale, rotation::Quaternion)
-    T = eltype(translation)
     trans_scale = transformationmatrix(translation, scale)
     rotation = Mat4f0(rotation)
     trans_scale*rotation
 end
+
+function transformationmatrix(
+        translation::Vec{3}, scale::Vec{3}, rotation::Quaternion,
+        align, flip::NTuple{3, Bool}, boundingbox::Nothing
+    )
+    return transformationmatrix(translation, scale, rotation)
+end
+
+function transformationmatrix(
+        translation::Vec{3}, scale::Vec{3}, rotation::Quaternion,
+        align, flip::NTuple{3, Bool}, boundingbox::Rect3D
+    )
+    full_width = widths(boundingbox)
+    mini = minimum(boundingbox)
+    half_width = full_width ./ 2
+    to_origin = (half_width + mini)
+    align_middle = translationmatrix(-to_origin)
+    align_back = translationmatrix(to_origin)
+    flipsign = map(x-> ifelse(x, -1f0, 1f0), Vec{3}(flip))
+    flipped = align_back * scalematrix(flipsign) * align_middle
+    aligned = flipped #translationmatrix(align .* full_width) * flipped
+    trans_scale = transformationmatrix(translation, scale)
+    rotation = Mat4f0(rotation)
+    aligned * trans_scale * rotation
+end
+
 function transformationmatrix(
         translation, scale, rotation::Vec{3,T}, up = Vec{3,T}(0,0,1)
     ) where T

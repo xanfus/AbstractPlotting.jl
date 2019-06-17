@@ -4,13 +4,12 @@ os:
   - linux
 julia:
   - 1.1
+  - 1.2
   - nightly
 notifications:
   email: false
 git:
   depth: 99999999
-env:
-  - IS_TRAVIS_CI = "true"
 
 # uncomment the following lines to allow failures on nightly julia
 # (tests will run but not make your overall status red)
@@ -23,8 +22,8 @@ matrix:
  apt: # apt-get for linux
    packages:
    - ffmpeg
-# before_script: # homebrew for mac
-#  - if [ $TRAVIS_OS_NAME = osx ]; then brew install gcc; fi
+before_script: # homebrew for mac
+ - julia -e 'using Pkg; pkg"add MakieGallery#master"'
 
 ## uncomment the following lines to override the default test script
 #script:
