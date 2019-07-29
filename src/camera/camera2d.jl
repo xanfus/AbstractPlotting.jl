@@ -13,12 +13,12 @@ end
 Creates a 2D camera for the given Scene.
 """
 function cam2d!(scene::SceneLike; kw_args...)
-    cam_attributes, rest = merged_get!(:cam2d, scene, Attributes(kw_args)) do
+    cam_attributes = merged_get!(:cam2d, scene, Attributes(kw_args)) do
         Theme(
             area = node(:area, FRect(0, 0, 1, 1)),
             zoomspeed = 0.10f0,
             zoombutton = nothing,
-            panbutton = Mouse.right,
+            panbutton = Mouse.left,
             selectionbutton = (Keyboard.space, Mouse.left),
             padding = 0.001,
             last_area = Vec(size(scene))
@@ -165,11 +165,16 @@ function absrect(rect)
     end
     FRect(Vec2f0(xy), Vec2f0(abs.(wh)))
 end
+
+
 function selection_rect!(scene, cam, key)
     rect = RefValue(FRect())
     lw = 2f0
-    scene_unscaled = Scene(scene, transformation = Transformation(), cam = copy(camera(scene)))
-    theme(scene_unscaled, :clear)[] = false
+    scene_unscaled = Scene(
+        scene, transformation = Transformation(),
+        cam = copy(camera(scene)), clear = false
+    )
+    scene_unscaled.clear = false
     scene_unscaled.updated = Node(false)
     rect_vis = lines!(
         scene_unscaled,
@@ -215,9 +220,6 @@ function selection_rect!(scene, cam, key)
     end
     rect_vis, dragged_rect
 end
-
-
-
 
 function reset!(cam, boundingbox, preserveratio = true)
     w1 = widths(boundingbox)

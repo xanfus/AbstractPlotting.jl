@@ -444,8 +444,6 @@ function plot!(plot::Annotations)
     plot
 end
 
-is2d(scene::SceneLike) = widths(limits(scene)[])[3] == 0.0
-
 """
     arc(origin, radius, start_angle, stop_angle; kwargs...)
 
