@@ -21,6 +21,55 @@ function default_theme(scene)
         overdraw = false,
     )
 end
+function calculated_attributes!(::Type{<: Scatter}, plot)
+    per_vertex = Dict()
+    attributes = Dict()
+    for (k, v) in plot
+        if isscaler(v)
+            attributes[k] = v
+        else
+            per_vertex[k] = v
+        end
+    end
+end
+
+function calculated_attributes!(::Type{<: Sampler}, plot)
+
+end
+
+
+(:colormap, :colorrange, :color) => (ColorSampler, :color)
+(:x, :y) => (Vector, :position)
+(:xlimits, :ylimits, :zlimits) => (:limits => FRect3D)
+
+@rewrite function Limits(;
+        limits = nothing,
+        xlimits = automatic, ylimits = automatic, zlimits = automatic
+    )
+    Sampler(color, )
+end
+
+@rewrite function Sampler(color::AbstractArray; interpolation = false, )
+    Sampler(color, )
+end
+
+@rewrite function Alpha(color, alpha)
+    :color => RGBA.(Colors.color.(color), Colors.alpha.(color) .* alpha)
+end
+
+@rewrite function Marker(
+        position,
+        markersize,
+        color,
+
+    )
+    VertexArray(markersize = markersize, color = color, position = position)
+end
+
+@rewrite function Marker(position::AbstractVector, markersize::AbstractVector, rot)
+    per_point = VertexArray(markersize = markersize, position = position)
+end
+
 
 
 #this defines which attributes in a theme should be removed if another attribute is defined by the user,
@@ -39,7 +88,7 @@ $(ATTRIBUTES)
 @recipe(Image, x, y, image) do scene
     Theme(;
         default_theme(scene)...,
-        colormap = [RGBAf0(0,0,0,1), RGBAf0(1,1,1,1)],
+        colormap = [:black, :white],
         colorrange = automatic,
         fxaa = false,
     )
