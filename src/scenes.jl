@@ -9,42 +9,59 @@ $(FIELDS)
 $(SIGNATURES)
 """
 mutable struct Scene <: AbstractScene
-    parent
+    parent::Union{Scene, Nothing}
     events::Events
 
     px_area::Node{IRect2D}
-    # plot_area::Node{IRect2D}
 
     camera::Camera
-    camera_controls::RefValue
+    camera_controls::RefValue{Any}
 
     # The limits of the data plotted in this scene
     # Can't be set by user and is only used to store calculated data bounds
     data_limits::Node{Union{Nothing, FRect3D}}
 
+    # The scenes transformation
     transformation::Transformation
 
-    plots::Vector{AbstractPlot}
+    plots::Vector{Plot}
+    # The local theme
     theme::Attributes
+    # The attributes of a scene
     attributes::Attributes
+    # The child scenes
     children::Vector{Scene}
+
     current_screens::Vector{AbstractScreen}
+
     # Signal to indicate, wheter layouting should happen. If updated to true
     # Scene will be layouted according to its attributes (raw/center/scale_plot)
     updated::Node{Bool}
 end
 
-Base.haskey(scene::Scene, key::Symbol) = haskey(scene.attributes, key)
+function attributes(scene::Scene)
+    return getfield(scene, :attributes)
+end
+Base.haskey(scene::Scene, key::Symbol) = haskey(attributes(scene), key)
+
 function Base.getindex(scene::Scene, key::Symbol)
-    if haskey(scene.attributes, key)
-        return scene.attributes[key]
+    # Attributes have priority over the theme values.
+    # You can think of attributes as the concrete values
+    # While the theme contain fallback values for anything not contained in the
+    # attributes
+    if haskey(attributes(scene), key)
+        return attributes(scene)[key]
     else
-        return scene.theme[key]
+        return theme(scene)[key]
     end
 end
 
+function Base.merge!(scene::Scene, attr::Attributes)
+    merge!(attributes(scene), attr)
+end
+
 function Base.setindex!(scene::Scene, value, key::Symbol)
-    scene.attributes[key] = value
+    attributes(scene)[key] = value
 end
 
 function Scene(
@@ -72,20 +89,20 @@ function Scene(
         transformation, plots, theme, attributes,
         children, current_screens, updated
     )
-    finalizer(scene) do scene
-        # save_print("Freeing scene")
-        close_all_nodes(scene.events)
-        close_all_nodes(scene.transformation)
-        for field in (:px_area, :data_limits)
-            close(getfield(scene, field))
-        end
-        disconnect!(scene.camera)
-        empty!(scene.theme)
-        empty!(scene.attributes)
-        empty!(scene.children)
-        empty!(scene.current_screens)
-        return
-    end
+    # finalizer(scene) do scene
+    #     # save_print("Freeing scene")
+    #     close_all_nodes(scene.events)
+    #     close_all_nodes(scene.transformation)
+    #     for field in (:px_area, :data_limits)
+    #         close(getfield(scene, field))
+    #     end
+    #     disconnect!(scene.camera)
+    #     empty!(scene.theme)
+    #     empty!(attributes(scene))
+    #     empty!(scene.children)
+    #     empty!(scene.current_screens)
+    #     return
+    # end
     onany(updated, px_area) do update, px_area
         if update && !(scene.camera_controls[] isa PixelCamera)
             if !scene.raw[]
@@ -99,7 +116,7 @@ function Scene(
     if scene[:camera][] !== automatic && camera_controls[] == EmptyCamera()
         # camera shouldn't really be part of the attributes, especially since
         # it just adds the camera one time and after that isn't usable
-        cam = pop!(scene.attributes, :camera)[]
+        cam = pop!(attributes(scene), :camera)[]
         apply_camera!(scene, cam)
     end
     scene
@@ -163,7 +180,7 @@ function Scene(
         transformation,
         AbstractPlot[],
         merge(current_default_theme(), theme),
-        merge!(Attributes(clear = clear; kw_args...), scene.attributes),
+        merge!(Attributes(clear = clear; kw_args...), attributes(scene)),
         Scene[],
         current_screens,
         scene

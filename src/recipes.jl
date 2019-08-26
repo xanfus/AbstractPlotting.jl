@@ -1,9 +1,43 @@
+"""
+    extract_scene_attributes!(attributes)
+
+removes all scene attributes from `attributes` and returns them in a new
+Attribute dict.
+"""
+function extract_scene_attributes!(attributes)
+    scene_attributes = (
+        :backgroundcolor,
+        :resolution,
+        :show_axis,
+        :show_legend,
+        :scale_plot,
+        :center,
+        :axis,
+        :axis2d,
+        :axis3d,
+        :legend,
+        :camera,
+        :limits,
+        :padding,
+        :raw
+    )
+    result = Attributes()
+    for k in scene_attributes
+        haskey(attributes, k) && (result[k] = pop!(attributes, k))
+    end
+    return result
+end
+
 
 function construct_plotspec(@nospecialize(func), attr::Attributes, @nospecialize(args))
+    construct_plotspec(Scene(), func, attr, args)
+end
+
+function construct_plotspec(scene::Scene, @nospecialize(func), attr::Attributes, @nospecialize(args))
     kw = extract_scene_attributes!(attr)
-    parent = Scene(; kw...)
-    p = Plot(func, parent, attr, args)
-    return plot!(parent, p)
+    merge!(scene, kw)
+    p = Plot(func, attr, args)
+    return plot!(scene, p)
 end
 
 """
@@ -12,40 +46,40 @@ Creates all the different overloads for `funcname` that need to be supported for
 Since we add all these signatures to different functions, we make it reusable with this function.
 The `Core.@__doc__` macro transfers the docstring given to the Recipe into the functions.
 """
-function default_plot_signatures(funcname, funcname!, PlotType)
+function default_plot_signatures(funcname, funcname!)
     quote
 
-        Core.@__doc__ function ($funcname)(args...; attributes...)
-            construct_plotspec($funcname, Attributes(attributes), args)
+        Core.@__doc__ function ($funcname)(args...; kw...)
+            return construct_plotspec($funcname, Attributes(kw), args)
         end
 
-
-        Core.@__doc__ function ($funcname!)(args...; attributes...)
-            plot!(current_scene(), $PlotType, Attributes(attributes), args...)
+        Core.@__doc__ function ($funcname!)(args...; kw...)
+            return construct_plotspec(current_scene(), Attributes(kw), args)
         end
 
-        function ($funcname!)(scene::SceneLike, args...; attributes...)
-            plot!(scene, $PlotType, Attributes(attributes), args...)
+        function ($funcname!)(scene::SceneLike, args...; kw...)
+            return construct_plotspec(scene, Attributes(kw), args)
         end
 
-        function ($funcname)(attributes::Attributes, args...; kw_attributes...)
-            merged = merge!(Attributes(kw_attributes), attributes)
-            kw = extract_scene_attributes!(merged)
-            plot!(Scene(;kw...), $PlotType, merged, args...)
+        function ($funcname)(attributes::Attributes, args...; kw...)
+            merged = merge!(Attributes(kw), attributes)
+            return construct_plotspec($funcname, merged, args)
         end
 
-        function ($funcname!)(attributes::Attributes, args...; kw_attributes...)
-            plot!(current_scene(), $PlotType, merge!(Attributes(kw_attributes), attributes), args...)
+        function ($funcname!)(attributes::Attributes, args...; kw...)
+            merged = merge!(Attributes(kw), attributes)
+            return construct_plotspec(current_scene(), merged, args)
         end
 
-        function ($funcname!)(scene::SceneLike, attributes::Attributes, args...; kw_attributes...)
-            plot!(scene, $PlotType, merge!(Attributes(kw_attributes), attributes), args...)
+        function ($funcname!)(scene::SceneLike, attributes::Attributes, args...; kw...)
+            merged = merge!(Attributes(kw), attributes)
+            return construct_plotspec(scene, merged, args)
         end
     end
 end
 
 
-to_func_name(x::Symbol) = string(x) |> lowercase |> Symbol
+to_func_name(x::Symbol) = Symbol(lowercase(string(x)))
 
 """
 # Plot Recipes in `AbstractPlotting`
@@ -149,17 +183,23 @@ when `a` is a 3D array of floating point numbers:
 The docstring given to the recipe will be transferred to the functions it generates.
 
 """
-macro recipe(theme_func, Tsym::Symbol, args::Symbol...)
+macro recipe(theme_func, Tsym::Symbol, argnames::Symbol...)
     funcname_sym = to_func_name(Tsym)
     funcname! = esc(Symbol("$(funcname_sym)!"))
     PlotType = esc(Tsym)
     funcname = esc(funcname_sym)
     expr = quote
         $(funcname)() = not_implemented_for($funcname)
-        $(default_plot_signatures(funcname, funcname!, PlotType))
+        $(default_plot_signatures(funcname, funcname!))
         let theme_func = $(esc(theme_func))
-            function $(PlotType)(user_attributes::Attributes, @nospecialize(args))
-                Plot()
+            function $(PlotType)(user_attributes::Attributes, args)
+                argnames = $([argnames...])
+                # We insert the arguments into the plotspec
+                insert_with_names!(user_attributes, args, argnames)
+                return Plot($funcname, argnames, user_attributes)
+            end
+            function AbstractPlotting.Plot(::typeof($(funcname)), user_attributes::Attributes, args)
+                return $(PlotType)(user_attributes, args)
             end
         end
         export $PlotType, $funcname, $funcname!
@@ -168,6 +208,8 @@ macro recipe(theme_func, Tsym::Symbol, args::Symbol...)
 end
 
 
-function insert_with_names(target, tuple, names)
-
+function insert_with_names!(attributes::Attributes, @nospecialize(args), @nospecialize(argnames))
+    for i in 0:(length(args) - 1)
+        attributes[argnames[end - i]] = args[end - i]
+    end
 end

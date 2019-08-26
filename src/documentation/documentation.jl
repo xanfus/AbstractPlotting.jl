@@ -157,17 +157,17 @@ function help_attributes(io::IO, func::Function; extended = false)
     help_attributes(io, to_type(func); extended = extended)
 end
 
-function help_attributes(io::IO, Typ::Type{T}; extended = false) where T <: Union{Axis2D, Axis3D}
-    if extended
-        println(io, "Axis attributes and their defaults for `$Typ` are: \n")
-    else
-        println(io, "Axis attributes for `$Typ` are: \n")
-    end
-    attributes = default_theme(nothing, Typ)
-    println(io, "```")
-    print_rec(io, attributes, 1; extended = extended)
-    println(io, "```")
-end
+# function help_attributes(io::IO, Typ::Type{T}; extended = false) where T <: Union{Axis2D, Axis3D}
+#     if extended
+#         println(io, "Axis attributes and their defaults for `$Typ` are: \n")
+#     else
+#         println(io, "Axis attributes for `$Typ` are: \n")
+#     end
+#     attributes = default_theme(nothing, Typ)
+#     println(io, "```")
+#     print_rec(io, attributes, 1; extended = extended)
+#     println(io, "```")
+# end
 
 # ==========================================================
 # Supporting functions for the help functions

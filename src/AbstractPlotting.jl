@@ -49,26 +49,26 @@ include("camera/camera3d.jl")
 
 
 # some default recipes
-include("basic_recipes/basic_recipes.jl")
-include("basic_recipes/multiple.jl")
+# include("basic_recipes/basic_recipes.jl")
+# include("basic_recipes/multiple.jl")
 # layouting of plots
 include("layouting/transformation.jl")
 include("layouting/data_limits.jl")
 include("layouting/layouting.jl")
 include("layouting/boundingbox.jl")
 # more default recipes
-include("basic_recipes/buffers.jl")
-include("basic_recipes/axis.jl")
-include("basic_recipes/legend.jl")
-include("basic_recipes/title.jl")
+# include("basic_recipes/buffers.jl")
+# include("basic_recipes/axis.jl")
+# include("basic_recipes/legend.jl")
+# include("basic_recipes/title.jl")
 
 # Interactiveness
 include("interaction/events.jl")
-include("interaction/gui.jl")
+# include("interaction/gui.jl")
 include("interaction/interactive_api.jl")
 
 # documentation and help functions
-include("documentation/documentation.jl")
+# include("documentation/documentation.jl")
 include("display.jl")
 
 # help functions and supporting functions

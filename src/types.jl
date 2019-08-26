@@ -325,14 +325,14 @@ end
 Base.merge(target::Attributes, args::Attributes...) = merge!(copy(target), args...)
 
 function Base.getproperty(x::T, key::Symbol) where T <: Union{Attributes, Transformable}
-    if Base.sym_in(key, x)
-        getfield(x, key)
+    if key in propertynames(x)
+        return getfield(x, key)
     else
-        getindex(x, key)
+        return getindex(x, key)
     end
 end
 function Base.setproperty!(x::T, key::Symbol, value) where T <: Union{Attributes, Transformable}
-    if Base.sym_in(key, x)
+    if key in propertynames(x)
         setfield!(x, key, value)
     else
         setindex!(x, value, key)
@@ -381,16 +381,26 @@ Base.show(io::IO, attr::Attributes) = show(io, MIME"text/plain"(), attr)
 struct Plot <: ScenePlot
     # function that can be called to create this plot type
     plot_function::Any
-    parent::RefValue{Scene}
-    # The plots transformation
-    transformation::Transformation
-    # The user given attributes
+    argnames::Vector{Symbol}
+
+    # The user given attributes completely raw and unprocessed
     attributes::Attributes
     # The normalized attributes. Makie allows lots of "magics", so e.g.
     # one can pass in data as x, y, but they will ultimately become position = StructArray(x, y)
     # These conversions are holw in normalized attributes.
-    # This will also contain filled in attributes from the theme
+    # This will also contain filled in attributes from the theme.
+    # We cache them here to do the normalization just one time
     normalized_attributes::Attributes
+
+    # The plots transformation
+    transformation::Transformation
+end
+
+function Plot(
+        @nospecialize(plot_function), argnames::Vector{Symbol},
+        attributes, transformation = Transformation()
+    )
+    return Plot(plot_function, argnames, attributes, Attributes(), transformation)
 end
 
 attributes(x::AbstractPlot) = getfield(x, :attributes)

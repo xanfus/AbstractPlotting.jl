@@ -135,22 +135,19 @@ end
 function Base.show(io::IO, plot::Plot)
     println(io, typeof(plot))
     println(io, "plots:")
-    for p in plot.plots
-        println(io, "   *", typeof(p))
-    end
     print(io, "attributes:")
-    for (k, v) in theme(plot)
+    for (k, v) in attributes(plot)
         print(io, "\n  $k : $(typeof(to_value(v)))")
     end
 end
-
-function Base.show(io::IO, plot::Atomic)
-    println(io, typeof(plot))
-    print(io, "attributes:")
-    for (k, v) in theme(plot)
-        print(io, "\n  $k : $(typeof(to_value(v)))")
-    end
-end
+#
+# function Base.show(io::IO, plot::Atomic)
+#     println(io, typeof(plot))
+#     print(io, "attributes:")
+#     for (k, v) in theme(plot)
+#         print(io, "\n  $k : $(typeof(to_value(v)))")
+#     end
+# end
 
 
 

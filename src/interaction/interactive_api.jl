@@ -35,22 +35,22 @@ Returns the plot that is under the current mouse position
 function mouse_selection(scene::SceneLike)
     pick(scene, events(scene).mouseposition[])
 end
-
-function flatten_plots(x::Atomic, plots = AbstractPlot[])
-    if isempty(x.plots)
-        push!(plots, x)
-    else
-        flatten_plots(x.plots, plots)
-    end
-    plots
-end
-
-function flatten_plots(x::Plot, plots = AbstractPlot[])
-    for elem in x.plots
-        flatten_plots(elem, plots)
-    end
-    plots
-end
+#
+# function flatten_plots(x::Atomic, plots = AbstractPlot[])
+#     if isempty(x.plots)
+#         push!(plots, x)
+#     else
+#         flatten_plots(x.plots, plots)
+#     end
+#     plots
+# end
+#
+# function flatten_plots(x::Plot, plots = AbstractPlot[])
+#     for elem in x.plots
+#         flatten_plots(elem, plots)
+#     end
+#     plots
+# end
 
 function flatten_plots(array, plots = AbstractPlot[])
     for elem in array

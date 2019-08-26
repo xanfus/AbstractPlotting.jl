@@ -22,11 +22,12 @@ function default_theme(scene)
     )
 end
 
-
 #this defines which attributes in a theme should be removed if another attribute is defined by the user,
 #to avoid conflicts later through the pipeline
 
 mutual_exclusive_attributes(::Type{<:AbstractPlot}) = Dict()
+
+
 """
     image(x, y, image)
     image(image)
@@ -95,12 +96,6 @@ $(ATTRIBUTES)
     )
 end
 
-function mutual_exclusive_attributes(::Type{<:Volume})
-    Dict(
-        :colorrange => :color,
-        :colormap   => :color,
-    )
-end
 
 """
     surface(x, y, z)
@@ -130,7 +125,7 @@ Creates a connected line plot for each element in `(x, y, z)`, `(x, y)` or `posi
 ## Theme
 $(ATTRIBUTES)
 """
-@recipe(Lines, positions) do scene
+@recipe(Lines, x, y, z) do scene
     Theme(;
         default_theme(scene)...,
         linewidth = 1.0,
@@ -188,7 +183,7 @@ Plots a marker for each element in `(x, y, z)`, `(x, y)`, or `positions`.
 ## Theme
 $(ATTRIBUTES)
 """
-@recipe(Scatter, positions) do scene
+@recipe(Scatter, x, y, z) do scene
     Theme(;
         default_theme(scene)...,
         marker = theme(scene, :marker),
@@ -219,7 +214,7 @@ Plots a mesh for each element in `(x, y, z)`, `(x, y)`, or `positions` (similar 
 ## Theme
 $(ATTRIBUTES)
 """
-@recipe(MeshScatter, positions) do scene
+@recipe(MeshScatter, x, y, z) do scene
     Theme(;
         default_theme(scene)...,
         marker = Sphere(Point3f0(0), 1f0),
@@ -258,9 +253,7 @@ const atomic_function_symbols = (
     :lines, :surface, :volume, :heatmap, :image
 )
 
-
 const atomic_functions = getfield.(Ref(AbstractPlotting), atomic_function_symbols)
-const Atomic{Arg} = Union{map(x-> Plot{x, Arg}, atomic_functions)...}
 
 function color_and_colormap!(plot, intensity = plot[:color])
     if isa(intensity[], AbstractArray{<: Number})
@@ -275,7 +268,6 @@ function color_and_colormap!(plot, intensity = plot[:color])
     end
 end
 
-
 """
     `calculated_attributes!(plot::AbstractPlot)`
 
@@ -288,69 +280,52 @@ calculated_attributes!(plot::T) where T = calculated_attributes!(T, plot)
 trait version of calculated_attributes
 """
 calculated_attributes!(trait, plot) = nothing
-
-function calculated_attributes!(::Type{<: Mesh}, plot)
-    need_cmap = color_and_colormap!(plot)
-    need_cmap || delete!(plot, :colormap)
-    return
-end
-
-function calculated_attributes!(::Type{<: Union{Heatmap, Image}}, plot)
-    plot[:color] = plot[3]
-    color_and_colormap!(plot)
-end
-function calculated_attributes!(::Type{<: Surface}, plot)
-    colors = plot[3]
-    if haskey(plot, :color)
-        color = plot[:color][]
-        if isa(color, AbstractMatrix{<: Number}) && !(color === to_value(colors))
-            colors = plot[:color]
-        end
-    end
-    color_and_colormap!(plot, colors)
-end
-function calculated_attributes!(::Type{<: MeshScatter}, plot)
-    color_and_colormap!(plot)
-end
-
-
-function calculated_attributes!(::Type{<: Scatter}, plot)
-    # calculate base case
-    color_and_colormap!(plot)
-    replace_automatic!(plot, :marker_offset) do
-        # default to middle
-        lift(x-> to_2d_scale(x .* (-0.5f0)), plot[:markersize])
-    end
-end
-
-function calculated_attributes!(::Type{<: Union{Lines, LineSegments}}, plot)
-    color_and_colormap!(plot)
-    pos = plot[1][]
-    # extend one color per linesegment to be one (the same) color per vertex
-    # taken from @edljk  in PR #77
-    if haskey(plot, :color) && isa(plot[:color][], AbstractVector) && iseven(length(pos)) && (length(pos) ÷ 2) == length(plot[:color][])
-        plot[:color] = lift(plot[:color]) do cols
-            map(i-> cols[(i + 1) ÷ 2], 1:(length(cols) * 2))
-        end
-    end
-end
-
-
-# # to allow one color per edge
-# function calculated_attributes!(plot::LineSegments)
-#     plot[:color] = lift(plot[:color], plot[1]) do c, p
-#         if (length(p) ÷ 2) == length(c)
-#             [c[k] for k in 1:length(c), l in 1:2]
-#         else
-#             c
+#
+# function calculated_attributes!(::Type{<: Mesh}, plot)
+#     need_cmap = color_and_colormap!(plot)
+#     need_cmap || delete!(plot, :colormap)
+#     return
+# end
+#
+# function calculated_attributes!(::Type{<: Union{Heatmap, Image}}, plot)
+#     plot[:color] = plot[3]
+#     color_and_colormap!(plot)
+# end
+# function calculated_attributes!(::Type{<: Surface}, plot)
+#     colors = plot[3]
+#     if haskey(plot, :color)
+#         color = plot[:color][]
+#         if isa(color, AbstractMatrix{<: Number}) && !(color === to_value(colors))
+#             colors = plot[:color]
+#         end
+#     end
+#     color_and_colormap!(plot, colors)
+# end
+# function calculated_attributes!(::Type{<: MeshScatter}, plot)
+#     color_and_colormap!(plot)
+# end
+#
+#
+# function calculated_attributes!(::Type{<: Scatter}, plot)
+#     # calculate base case
+#     color_and_colormap!(plot)
+#     replace_automatic!(plot, :marker_offset) do
+#         # default to middle
+#         lift(x-> to_2d_scale(x .* (-0.5f0)), plot[:markersize])
+#     end
+# end
+#
+# function calculated_attributes!(::Type{<: Union{Lines, LineSegments}}, plot)
+#     color_and_colormap!(plot)
+#     pos = plot[1][]
+#     # extend one color per linesegment to be one (the same) color per vertex
+#     # taken from @edljk  in PR #77
+#     if haskey(plot, :color) && isa(plot[:color][], AbstractVector) && iseven(length(pos)) && (length(pos) ÷ 2) == length(plot[:color][])
+#         plot[:color] = lift(plot[:color]) do cols
+#             map(i-> cols[(i + 1) ÷ 2], 1:(length(cols) * 2))
 #         end
 #     end
 # end
-
-function (PT::Type{<: Plot})(parent, transformation, attributes, input_args, converted)
-    PT(parent, transformation, attributes, input_args, converted, AbstractPlot[])
-end
-plotsym(::Type{<:AbstractPlot{F}}) where F = Symbol(typeof(F).name.mt.name)
 
 """
     used_attributes(args...) = ()
@@ -375,29 +350,6 @@ Usage:
 used_attributes(PlotType, args...) = ()
 
 
-"""
-apply for return type
-    (args...,)
-"""
-function apply_convert!(P, attributes::Attributes, x::Tuple)
-    return (plottype(P, x...), x)
-end
-
-
-"""
-apply for return type Plot
-"""
-function apply_convert!(P, attributes::Attributes, x::Plot{S}) where S
-    args, kwargs = x.args, x.kwargs
-    # Note that kw_args in the plot spec that are not part of the target plot type
-    # will end in the "global plot" kw_args (rest)
-    for (k, v) in pairs(kwargs)
-        attributes[k] = v
-    end
-    return (plottype(P, S), args)
-end
-
-
 function seperate_tuple(args::Node{<: NTuple{N, Any}}) where N
     ntuple(N) do i
         lift(args) do x
@@ -409,49 +361,6 @@ function seperate_tuple(args::Node{<: NTuple{N, Any}}) where N
         end
     end
 end
-
-function (PlotType::Type{<: AbstractPlot{Typ}})(scene::SceneLike, attributes::Attributes, args) where Typ
-    input = to_node.(args)
-    argnodes = lift(input...) do args...
-        convert_arguments(PlotType, args...)
-    end
-    PlotType(scene, attributes, input, argnodes)
-end
-
-function (PlotType::Type{<: AbstractPlot{Typ}})(scene::SceneLike, attributes::Attributes, input, args) where Typ
-    # The argument type of the final plot object is the assumened to stay constant after
-    # argument conversion. This might not always hold, but it simplifies
-    # things quite a bit
-    ArgTyp = typeof(to_value(args))
-    # construct the fully qualified plot type, from the possible incomplete (abstract)
-    # PlotType
-    FinalType = Plot{Typ, ArgTyp}
-    plot_attributes = merged_get!(
-        ()-> default_theme(scene, FinalType),
-        plotsym(FinalType), scene, attributes
-    )
-
-    # Transformation is a field of the plot type, but can be given as an attribute
-    trans = get(plot_attributes, :transformation, automatic)
-    transformation = if to_value(trans) == automatic
-        Transformation(scene)
-    elseif isa(to_value(trans), Transformation)
-        to_value(trans)
-    else
-        t = Transformation(scene)
-        transform!(t, to_value(trans))
-        t
-    end
-    replace_automatic!(plot_attributes, :model) do
-        transformation.model
-    end
-    # create the plot, with the full attributes, the input signals, and the final signal nodes.
-    plot_obj = FinalType(scene, transformation, plot_attributes, input, seperate_tuple(args))
-    transformation.parent[] = plot_obj
-    calculated_attributes!(plot_obj)
-    plot_obj
-end
-
 
 
 """
@@ -465,115 +374,34 @@ e.g.:
     plottype(x::Array{<: AbstractFlot, 3}) = Volume
 ```
 """
-plottype(plot_args...) = Plot{Any, Tuple{typeof.(to_value.(plot_args))...}} # default to dispatch to type recipes!
-plottype(::RealVector, ::RealVector) = Lines
-plottype(::RealVector) = Lines
-plottype(::AbstractMatrix{<: Real}) = Heatmap
-# If the Plot has no plot func, calculate them
-plottype(::Type{<: Plot{Any}}, argvalues...) = plottype(argvalues...)
-plottype(::Type{Any}, argvalues...) = plottype(argvalues...)
-# If it has something more concrete than Any, use it directly
-plottype(P::Type{<: Plot{T}}, argvalues...) where T = P
+plottype(::RealVector, ::RealVector) = lines!
+plottype(::RealVector) = lines!
+plottype(::AbstractMatrix{<: Real}) = heatmap!
 
-"""
-    plottype(P1::Type{<: Plot{T1}}, P2::Type{<: Plot{T2}})
+plot(args...; kw...) = plot!(Scene(), args...; kw...)
+plot!(args...; kw...) = plot!(current_scene(), args...; kw...)
+plot(scene::Scene, args...; kw...) = plot!(Scene(scene), args...; kw...)
+plot!(scene::Scene, args...; kw...) = plottype(args...)(scene, args...; kw...)
 
-Chooses the more concrete plot type
-```example
-function convert_arguments(P::PlotFunc, args...)
-    ptype = plottype(P, Lines)
-    ...
+plot(scene::Scene, attributes::Attributes, args...; kw...) = plot!(Scene(scene), merge!(Attributes(kw), attributes), args...)
+plot(attributes::Attributes, args...; kw...) = plot!(Scene(), merge!(Attributes(kw), attributes), args...)
+plot!(attributes::Attributes, args...; kw...) = plot!(current_scene(), merge!(Attributes(kw), attributes), args...)
+
+function plot!(scene::Scene, attributes::Attributes, args...; kw...)
+    plottype(args...)(scene, merge!(Attributes(kw), attributes), args...)
 end
-"""
-plottype(P1::Type{<: Plot{Any}}, P2::Type{<: Plot{T}}) where T = P2
-plottype(P1::Type{<: Plot{T}}, P2::Type{<: Plot}) where T = P1
-
-
-"""
-Returns the Plot type that represents the signature of `args`.
-"""
-function Plot(args::Vararg{Any, N}) where N
-    Plot{Any, <: Tuple{args...}}
-end
-Base.@pure function Plot(::Type{T}) where T
-    Plot{Any, <: Tuple{T}}
-end
-Base.@pure function Plot(::Type{T1}, ::Type{T2}) where {T1, T2}
-    Plot{Any, <: Tuple{T1, T2}}
-end
-
-# all the plotting functions that get a plot type
-const PlotFunc = Union{Type{Any}, Type{<: AbstractPlot}}
-
-plot(P::PlotFunc, args...; kw_attributes...) = plot!(Scene(), P, Attributes(kw_attributes), args...)
-plot!(P::PlotFunc, args...; kw_attributes...) = plot!(current_scene(), P, Attributes(kw_attributes), args...)
-plot(scene::SceneLike, P::PlotFunc, args...; kw_attributes...) = plot!(Scene(scene), P, Attributes(kw_attributes), args...)
-plot!(scene::SceneLike, P::PlotFunc, args...; kw_attributes...) = plot!(scene, P, Attributes(kw_attributes), args...)
-
-plot(scene::SceneLike, P::PlotFunc, attributes::Attributes, args...; kw_attributes...) = plot!(Scene(scene), P, merge!(Attributes(kw_attributes), attributes), args...)
-plot!(P::PlotFunc, attributes::Attributes, args...; kw_attributes...) = plot!(current_scene(), P, merge!(Attributes(kw_attributes), attributes), args...)
-plot(P::PlotFunc, attributes::Attributes, args...; kw_attributes...) = plot!(Scene(), P, merge!(Attributes(kw_attributes), attributes), args...)
-
 # Overload remaining functions
-eval(default_plot_signatures(:plot, :plot!, :Any))
-
-# plots to scene
-
-plotfunc(::Plot{F}) where F = F
+# eval(default_plot_signatures(:plot, :plot!))
 
 
 """
 Main plotting signatures that plot/plot! route to if no Plot Type is given
 """
-function plot!(scene::SceneLike, P::PlotFunc, attributes::Attributes, args...; kw_attributes...)
-    attributes = merge!(Attributes(kw_attributes), attributes)
-    argvalues = to_value.(args)
-    PreType = plottype(P, argvalues...)
-    # plottype will lose the argument types, so we just extract the plot func
-    # type and recreate the type with the argument type
-    PreType = Plot{plotfunc(PreType), typeof(argvalues)}
-    convert_keys = intersect(used_attributes(PreType, argvalues...), keys(attributes))
-    kw_signal = if isempty(convert_keys) # lift(f) isn't supported so we need to catch the empty case
-        Node(())
-    else
-        lift((args...)-> Pair.(convert_keys, args), getindex.(attributes, convert_keys)...) # make them one tuple to easier pass through
-    end
-    # call convert_arguments for a first time to get things started
-    converted = convert_arguments(PreType, argvalues...; kw_signal[]...)
-    # convert_arguments can return different things depending on the recipe type
-    # apply_conversion deals with that!
-
-    FinalType, argsconverted = apply_convert!(PreType, attributes, converted)
-    converted_node = Node(argsconverted)
-    input_nodes =  to_node.(args)
-    onany(kw_signal, lift(tuple, input_nodes...)) do kwargs, args
-        # do the argument conversion inside a lift
-        result = convert_arguments(FinalType, args...; kwargs...)
-        finaltype, argsconverted = apply_convert!(FinalType, attributes, result)
-        if finaltype != FinalType
-            error("Plot type changed from $FinalType to $finaltype after conversion.
-                Changing the plot type based on values in convert_arguments is not allowed"
-            )
-        end
-        converted_node[] = argsconverted
-    end
-    plot!(scene, FinalType, attributes, input_nodes, converted_node)
+function plot!(scene::Scene, plot::Plot)
+    push!(scene.plots, plot)
+    return scene
 end
 
-plot!(p::Plot) = _plot!(p)
-
-_plot!(p::Atomic{T}) where T = p
-
-function _plot!(p::Plot{Any, T}) where T
-    args = (T.parameters...,)
-    typed_args = join(string.("::", args), ", ")
-    error("Plotting for the arguments ($typed_args) not defined. If you want to support those arguments, overload plot!(plot::Plot$((args...,)))")
-end
-function _plot!(p::Plot{X, T}) where {X, T}
-    args = (T.parameters...,)
-    typed_args = join(string.("::", args), ", ")
-    error("Plotting for the arguments ($typed_args) not defined for $X. If you want to support those arguments, overload plot!(plot::$X{ <: $T})")
-end
 
 function show_attributes(attributes)
     for (k, v) in attributes
@@ -581,62 +409,7 @@ function show_attributes(attributes)
     end
 end
 
-"""
-    extract_scene_attributes!(attributes)
-
-removes all scene attributes from `attributes` and returns them in a new
-Attribute dict.
-"""
-function extract_scene_attributes!(attributes)
-    scene_attributes = (
-        :backgroundcolor,
-        :resolution,
-        :show_axis,
-        :show_legend,
-        :scale_plot,
-        :center,
-        :axis,
-        :axis2d,
-        :axis3d,
-        :legend,
-        :camera,
-        :limits,
-        :padding,
-        :raw
-    )
-    result = Attributes()
-    for k in scene_attributes
-        haskey(attributes, k) && (result[k] = pop!(attributes, k))
-    end
-    return result
-end
-
-function plot!(scene::SceneLike, ::Type{PlotType}, attributes::Attributes, input::NTuple{N, Node}, args::Node) where {N, PlotType <: AbstractPlot}
-    # create "empty" plot type - empty meaning containing no plots, just attributes + arguments
-    scene_attributes = extract_scene_attributes!(attributes)
-    plot_object = PlotType(scene, copy(attributes), input, args)
-    # transfer the merged attributes from theme and user defined to the scene
-    for (k, v) in scene_attributes
-        scene.attributes[k] = v
-    end
-    # We allow certain scene attributes to be part of the plot theme
-    for k in (:camera, :raw)
-        if haskey(plot_object, k)
-            scene.attributes[k] = plot_object[k]
-        end
-    end
-    for (at1, at2) in mutual_exclusive_attributes(PlotType)
-        #nothing here to get around defaults in GLVisualize
-        haskey(attributes, at1) && haskey(attributes, at2) && error("$at1 conflicts with $at2, please specify only one.")
-        if haskey(attributes, at1) && haskey(plot_object.attributes, at2)
-            plot_object.attributes[at2] = nothing
-        elseif haskey(attributes, at2) && haskey(plot_object.attributes, at1)
-            plot_object.attributes[at1] = nothing
-        end
-    end
-    # call user defined recipe overload to fill the plot type
-    plot!(plot_object)
-
+function plot!(scene::SceneLike, attributes::Attributes, input::NTuple{N, Node}, args::Node) where {N, PlotType <: AbstractPlot}
     push!(scene, plot_object)
 
     if !scene.raw[] || scene[:camera][] !== automatic
@@ -655,14 +428,6 @@ function plot!(scene::SceneLike, ::Type{PlotType}, attributes::Attributes, input
     scene
 end
 
-function plot!(scene::Plot, ::Type{PlotType}, attributes::Attributes, args...) where PlotType <: AbstractPlot
-    # create "empty" plot type - empty meaning containing no plots, just attributes + arguments
-    plot_object = PlotType(scene, attributes, args)
-    # call user defined recipe overload to fill the plot type
-    plot!(plot_object)
-    push!(scene.plots, plot_object)
-    scene
-end
 function plot!(scene::Plot, ::Type{PlotType}, attributes::Attributes, input::NTuple{N,Node}, args::Node) where {N, PlotType <: AbstractPlot}
     # create "empty" plot type - empty meaning containing no plots, just attributes + arguments
     plot_object = PlotType(scene, attributes, input, args)
@@ -679,8 +444,6 @@ function apply_camera!(scene::Scene, cam_func)
         error("Unrecognized `camera` attribute type: $(typeof(cam_func)). Use automatic, cam2d! or cam3d!, campixel!, cam3d_cad!")
     end
 end
-
-
 
 
 function setup_camera!(scene::Scene)
