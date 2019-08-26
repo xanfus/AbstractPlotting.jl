@@ -576,7 +576,7 @@ $(ATTRIBUTES)
     merge(default_theme(scene, Scatter), default_theme(scene, Lines))
 end
 
-function plot!(p::Combined{scatterlines, <:NTuple{N, Any}}) where N
+function plot!(p::Plot{scatterlines, <:NTuple{N, Any}}) where N
     plot!(p, Lines, Theme(p), p[1:N]...)
     plot!(p, Scatter, Theme(p), p[1:N]...)
 end

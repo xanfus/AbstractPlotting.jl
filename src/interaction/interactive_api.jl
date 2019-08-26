@@ -45,7 +45,7 @@ function flatten_plots(x::Atomic, plots = AbstractPlot[])
     plots
 end
 
-function flatten_plots(x::Combined, plots = AbstractPlot[])
+function flatten_plots(x::Plot, plots = AbstractPlot[])
     for elem in x.plots
         flatten_plots(elem, plots)
     end

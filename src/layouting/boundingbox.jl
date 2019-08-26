@@ -12,7 +12,7 @@ function raw_boundingbox(x::Annotations)
     bb = raw_boundingbox(x.plots)
     inv(modelmatrix(rootparent(x))) * bb
 end
-function raw_boundingbox(x::Combined)
+function raw_boundingbox(x::Plot)
     raw_boundingbox(x.plots)
 end
 function boundingbox(x)
@@ -23,7 +23,7 @@ function combined_modelmatrix(x)
     m = Mat4f0(I)
     while true
         m = modelmatrix(x) * m
-        if parent(x) !== nothing && parent(x) isa Combined
+        if parent(x) !== nothing && parent(x) isa Plot
             x = parent(x)
         else
             break

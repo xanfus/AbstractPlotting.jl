@@ -76,7 +76,7 @@ export help, help_attributes, help_arguments
 
 # Abstract/Concrete scene + plot types
 export AbstractScene, SceneLike, Scene, AbstractScreen
-export AbstractPlot, Combined, Atomic, Axis
+export AbstractPlot, Plot, Atomic, Axis
 
 # Theming, working with Plots
 export Attributes, Theme, attributes, default_theme, theme, set_theme!
@@ -150,7 +150,7 @@ using GeometryTypes: widths
 export widths, decompose
 
 # building blocks for series recipes
-export PlotList, PlotSpec
+export PlotList, Plot
 
 export plot!, plot
 

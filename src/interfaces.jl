@@ -3,7 +3,7 @@ not_implemented_for(x) = error("Not implemented for $(x). You might want to put:
 #TODO only have one?
 const Theme = Attributes
 
-Theme(x::AbstractPlot) = x.attributes
+Theme(x::AbstractPlot) = attributes(x)
 
 default_theme(scene, T) = Attributes()
 
@@ -260,7 +260,7 @@ const atomic_function_symbols = (
 
 
 const atomic_functions = getfield.(Ref(AbstractPlotting), atomic_function_symbols)
-const Atomic{Arg} = Union{map(x-> Combined{x, Arg}, atomic_functions)...}
+const Atomic{Arg} = Union{map(x-> Plot{x, Arg}, atomic_functions)...}
 
 function color_and_colormap!(plot, intensity = plot[:color])
     if isa(intensity[], AbstractArray{<: Number})
@@ -347,7 +347,7 @@ end
 #     end
 # end
 
-function (PT::Type{<: Combined})(parent, transformation, attributes, input_args, converted)
+function (PT::Type{<: Plot})(parent, transformation, attributes, input_args, converted)
     PT(parent, transformation, attributes, input_args, converted, AbstractPlot[])
 end
 plotsym(::Type{<:AbstractPlot{F}}) where F = Symbol(typeof(F).name.mt.name)
@@ -385,9 +385,9 @@ end
 
 
 """
-apply for return type PlotSpec
+apply for return type Plot
 """
-function apply_convert!(P, attributes::Attributes, x::PlotSpec{S}) where S
+function apply_convert!(P, attributes::Attributes, x::Plot{S}) where S
     args, kwargs = x.args, x.kwargs
     # Note that kw_args in the plot spec that are not part of the target plot type
     # will end in the "global plot" kw_args (rest)
@@ -425,7 +425,7 @@ function (PlotType::Type{<: AbstractPlot{Typ}})(scene::SceneLike, attributes::At
     ArgTyp = typeof(to_value(args))
     # construct the fully qualified plot type, from the possible incomplete (abstract)
     # PlotType
-    FinalType = Combined{Typ, ArgTyp}
+    FinalType = Plot{Typ, ArgTyp}
     plot_attributes = merged_get!(
         ()-> default_theme(scene, FinalType),
         plotsym(FinalType), scene, attributes
@@ -465,18 +465,18 @@ e.g.:
     plottype(x::Array{<: AbstractFlot, 3}) = Volume
 ```
 """
-plottype(plot_args...) = Combined{Any, Tuple{typeof.(to_value.(plot_args))...}} # default to dispatch to type recipes!
+plottype(plot_args...) = Plot{Any, Tuple{typeof.(to_value.(plot_args))...}} # default to dispatch to type recipes!
 plottype(::RealVector, ::RealVector) = Lines
 plottype(::RealVector) = Lines
 plottype(::AbstractMatrix{<: Real}) = Heatmap
-# If the Combined has no plot func, calculate them
-plottype(::Type{<: Combined{Any}}, argvalues...) = plottype(argvalues...)
+# If the Plot has no plot func, calculate them
+plottype(::Type{<: Plot{Any}}, argvalues...) = plottype(argvalues...)
 plottype(::Type{Any}, argvalues...) = plottype(argvalues...)
 # If it has something more concrete than Any, use it directly
-plottype(P::Type{<: Combined{T}}, argvalues...) where T = P
+plottype(P::Type{<: Plot{T}}, argvalues...) where T = P
 
 """
-    plottype(P1::Type{<: Combined{T1}}, P2::Type{<: Combined{T2}})
+    plottype(P1::Type{<: Plot{T1}}, P2::Type{<: Plot{T2}})
 
 Chooses the more concrete plot type
 ```example
@@ -485,21 +485,21 @@ function convert_arguments(P::PlotFunc, args...)
     ...
 end
 """
-plottype(P1::Type{<: Combined{Any}}, P2::Type{<: Combined{T}}) where T = P2
-plottype(P1::Type{<: Combined{T}}, P2::Type{<: Combined}) where T = P1
+plottype(P1::Type{<: Plot{Any}}, P2::Type{<: Plot{T}}) where T = P2
+plottype(P1::Type{<: Plot{T}}, P2::Type{<: Plot}) where T = P1
 
 
 """
-Returns the Combined type that represents the signature of `args`.
+Returns the Plot type that represents the signature of `args`.
 """
 function Plot(args::Vararg{Any, N}) where N
-    Combined{Any, <: Tuple{args...}}
+    Plot{Any, <: Tuple{args...}}
 end
 Base.@pure function Plot(::Type{T}) where T
-    Combined{Any, <: Tuple{T}}
+    Plot{Any, <: Tuple{T}}
 end
 Base.@pure function Plot(::Type{T1}, ::Type{T2}) where {T1, T2}
-    Combined{Any, <: Tuple{T1, T2}}
+    Plot{Any, <: Tuple{T1, T2}}
 end
 
 # all the plotting functions that get a plot type
@@ -519,7 +519,7 @@ eval(default_plot_signatures(:plot, :plot!, :Any))
 
 # plots to scene
 
-plotfunc(::Combined{F}) where F = F
+plotfunc(::Plot{F}) where F = F
 
 
 """
@@ -531,7 +531,7 @@ function plot!(scene::SceneLike, P::PlotFunc, attributes::Attributes, args...; k
     PreType = plottype(P, argvalues...)
     # plottype will lose the argument types, so we just extract the plot func
     # type and recreate the type with the argument type
-    PreType = Combined{plotfunc(PreType), typeof(argvalues)}
+    PreType = Plot{plotfunc(PreType), typeof(argvalues)}
     convert_keys = intersect(used_attributes(PreType, argvalues...), keys(attributes))
     kw_signal = if isempty(convert_keys) # lift(f) isn't supported so we need to catch the empty case
         Node(())
@@ -560,16 +560,16 @@ function plot!(scene::SceneLike, P::PlotFunc, attributes::Attributes, args...; k
     plot!(scene, FinalType, attributes, input_nodes, converted_node)
 end
 
-plot!(p::Combined) = _plot!(p)
+plot!(p::Plot) = _plot!(p)
 
 _plot!(p::Atomic{T}) where T = p
 
-function _plot!(p::Combined{Any, T}) where T
+function _plot!(p::Plot{Any, T}) where T
     args = (T.parameters...,)
     typed_args = join(string.("::", args), ", ")
     error("Plotting for the arguments ($typed_args) not defined. If you want to support those arguments, overload plot!(plot::Plot$((args...,)))")
 end
-function _plot!(p::Combined{X, T}) where {X, T}
+function _plot!(p::Plot{X, T}) where {X, T}
     args = (T.parameters...,)
     typed_args = join(string.("::", args), ", ")
     error("Plotting for the arguments ($typed_args) not defined for $X. If you want to support those arguments, overload plot!(plot::$X{ <: $T})")
@@ -655,7 +655,7 @@ function plot!(scene::SceneLike, ::Type{PlotType}, attributes::Attributes, input
     scene
 end
 
-function plot!(scene::Combined, ::Type{PlotType}, attributes::Attributes, args...) where PlotType <: AbstractPlot
+function plot!(scene::Plot, ::Type{PlotType}, attributes::Attributes, args...) where PlotType <: AbstractPlot
     # create "empty" plot type - empty meaning containing no plots, just attributes + arguments
     plot_object = PlotType(scene, attributes, args)
     # call user defined recipe overload to fill the plot type
@@ -663,7 +663,7 @@ function plot!(scene::Combined, ::Type{PlotType}, attributes::Attributes, args..
     push!(scene.plots, plot_object)
     scene
 end
-function plot!(scene::Combined, ::Type{PlotType}, attributes::Attributes, input::NTuple{N,Node}, args::Node) where {N, PlotType <: AbstractPlot}
+function plot!(scene::Plot, ::Type{PlotType}, attributes::Attributes, input::NTuple{N,Node}, args::Node) where {N, PlotType <: AbstractPlot}
     # create "empty" plot type - empty meaning containing no plots, just attributes + arguments
     plot_object = PlotType(scene, attributes, input, args)
     # call user defined recipe overload to fill the plot type

@@ -132,7 +132,7 @@ function backend_show(backend, io::IO, ::MIME"text/plain", scene::Scene)
     return
 end
 
-function Base.show(io::IO, plot::Combined)
+function Base.show(io::IO, plot::Plot)
     println(io, typeof(plot))
     println(io, "plots:")
     for p in plot.plots

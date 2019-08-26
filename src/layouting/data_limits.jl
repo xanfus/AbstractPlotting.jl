@@ -1,4 +1,4 @@
-argtypes(x::Combined{T, A}) where {T, A} = A
+argtypes(x::Plot{T, A}) where {T, A} = A
 argtypes(x) = Any
 
 function data_limits(x)
@@ -117,4 +117,4 @@ function data_limits(plots::Vector)
 end
 
 data_limits(s::Scene) = data_limits(plots_from_camera(s))
-data_limits(plot::Combined) = data_limits(plot.plots)
+data_limits(plot::Plot) = data_limits(plot.plots)

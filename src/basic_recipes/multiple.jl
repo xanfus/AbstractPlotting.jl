@@ -24,20 +24,20 @@ Base.iterate(m::PlotList, args...) = iterate(m.plots, args...)
     default_theme(scene)
 end
 
-function default_theme(scene, ::Type{<:Combined{multipleplot, Tuple{P}}}) where {P<:AbstractPlotList}
+function default_theme(scene, ::Type{<:Plot{multipleplot, Tuple{P}}}) where {P<:AbstractPlotList}
     merge((default_theme(scene, pt) for pt in plottype(P))...)
 end
 # Allow MultiplePlot to prevail on user input: the plot type of each series will be defined in convert_arguments
-plottype(::Type{<: Combined{Any}}, A::Type{<:MultiplePlot}, argvalues...) = A
-plottype(::Type{<: Combined{T}}, A::Type{<:MultiplePlot}, argvalues...) where T = A
+plottype(::Type{<: Plot{Any}}, A::Type{<:MultiplePlot}, argvalues...) = A
+plottype(::Type{<: Plot{T}}, A::Type{<:MultiplePlot}, argvalues...) where T = A
 
 function convert_arguments(P::PlotFunc, m::PlotList)
-    function convert_series(plot::PlotSpec)
+    function convert_series(plot::Plot)
         ptype = plottype(P, plottype(plot))
         to_plotspec(ptype, convert_arguments(ptype, plot.args...); plot.kwargs...)
     end
     pl = PlotList(convert_series.(m.plots)...)
-    PlotSpec{MultiplePlot}(pl)
+    Plot{MultiplePlot}(pl)
 end
 
 combine(val1, val2; palette = nothing) = val2
@@ -56,7 +56,7 @@ combine(theme1::Theme, theme2) = combine!(copy(theme1), theme2)
 # This allows plotting an arbitrary combination of series form one argument
 # The recipe framework can be constructed using this as a building block and computing
 # PlotList with convert_arguments
-function plot!(p::Combined{multipleplot, <:Tuple{PlotList}})
+function plot!(p::Plot{multipleplot, <:Tuple{PlotList}})
     mp = to_value(p[1]) # TODO how to preserve interactivity here, as number of series may change?
     theme = Theme(p)
     for s in mp.plots
@@ -65,19 +65,19 @@ function plot!(p::Combined{multipleplot, <:Tuple{PlotList}})
     end
 end
 
-function default_theme(scene, ::Type{<:Combined{S, T}}) where {S<:Tuple, T}
-    merge((default_theme(scene, Combined{pt}) for pt in S.parameters)...)
+function default_theme(scene, ::Type{<:Plot{S, T}}) where {S<:Tuple, T}
+    merge((default_theme(scene, Plot{pt}) for pt in S.parameters)...)
 end
 
-function plot!(p::Combined{S, <:Tuple{Vararg{Any, N}}}) where {S <: Tuple, N}
+function plot!(p::Plot{S, <:Tuple{Vararg{Any, N}}}) where {S <: Tuple, N}
     for pt in S.parameters
-        plot!(p, Combined{pt}, Theme(p), p[1:N]...)
+        plot!(p, Plot{pt}, Theme(p), p[1:N]...)
     end
 end
 
-function Base.:*(::Type{<:Combined{S}}, ::Type{<:Combined{T}}) where {S, T}
+function Base.:*(::Type{<:Plot{S}}, ::Type{<:Plot{T}}) where {S, T}
     params1 = S isa Type{<:Tuple} ? S.parameters : [S]
     params2 = T isa Type{<:Tuple} ? T.parameters : [T]
     params = union(params1, params2)
-    Combined{Tuple{params...}}
+    Plot{Tuple{params...}}
 end

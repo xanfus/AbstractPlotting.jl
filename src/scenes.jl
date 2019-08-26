@@ -320,17 +320,17 @@ function scene_limits(scene::Scene)
     end
 end
 
-# Since we can use Combined like a scene in some circumstances, we define this alias
+# Since we can use Plot like a scene in some circumstances, we define this alias
 theme(x::SceneLike, args...) = theme(x.parent, args...)
 theme(x::Scene) = x.theme
 theme(x::Scene, key) = x.theme[key]
 theme(x::AbstractPlot, key) = x.attributes[key]
 theme(::Nothing, key::Symbol) = current_default_theme()[key]
 
-Base.push!(scene::Combined, subscene) = nothing # Combined plots add themselves uppon creation
+Base.push!(scene::Plot, subscene) = nothing # Plot plots add themselves uppon creation
 function Base.push!(scene::Scene, plot::AbstractPlot)
     push!(scene.plots, plot)
-    plot isa Combined || (plot.parent[] = scene)
+    plot isa Plot || (plot.parent[] = scene)
     if !scene.raw[]
         # update scenes data limit for each new plot!
         scene.data_limits[] = if scene.data_limits[] === nothing
@@ -476,7 +476,7 @@ Flattens all the combined plots and returns a Vector of Atomic plots
 """
 function flatten_combined(plots::Vector, flat = AbstractPlot[])
     for elem in plots
-        if (elem isa Combined)
+        if (elem isa Plot)
             flatten_combined(elem.plots, flat)
         else
             push!(flat, elem)
@@ -517,7 +517,7 @@ function center!(scene::Scene, padding = 0.01)
     update_cam!(scene, bb)
     scene
 end
-parent_scene(x::Combined) = parent_scene(parent(x))
+parent_scene(x::Plot) = parent_scene(parent(x))
 parent_scene(x::Scene) = x
 
 Base.isopen(x::SceneLike) = events(x).window_open[]

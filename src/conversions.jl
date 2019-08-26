@@ -131,7 +131,7 @@ function convert_arguments(::PointBased, positions::NTuple{N, AbstractVector}) w
     points = map(zip(positions...)) do p
         Point{N, Float32}(categoric_position.(p, labels))
     end
-    PlotSpec(points, tickranges = xyrange, ticklabels = labels)
+    Plot(points, tickranges = xyrange, ticklabels = labels)
 end
 
 """

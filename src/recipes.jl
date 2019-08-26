@@ -1,4 +1,10 @@
-to_func_name(x::Symbol) = string(x) |> lowercase |> Symbol
+
+function construct_plotspec(@nospecialize(func), attr::Attributes, @nospecialize(args))
+    kw = extract_scene_attributes!(attr)
+    parent = Scene(; kw...)
+    p = Plot(func, parent, attr, args)
+    return plot!(parent, p)
+end
 
 """
      default_plot_signatures(funcname, funcname!, PlotType)
@@ -10,9 +16,7 @@ function default_plot_signatures(funcname, funcname!, PlotType)
     quote
 
         Core.@__doc__ function ($funcname)(args...; attributes...)
-            attr = Attributes(attributes)
-            kw = extract_scene_attributes!(attr)
-            plot!(Scene(;kw...), $PlotType, attr, args...)
+            construct_plotspec($funcname, Attributes(attributes), args)
         end
 
 
@@ -40,6 +44,8 @@ function default_plot_signatures(funcname, funcname!, PlotType)
     end
 end
 
+
+to_func_name(x::Symbol) = string(x) |> lowercase |> Symbol
 
 """
 # Plot Recipes in `AbstractPlotting`
@@ -81,9 +87,9 @@ We use an example to show how this works:
 
 This macro expands to several things. Firstly a type definition:
 
-    const MyPlot{ArgTypes} = Combined{myplot, ArgTypes}
+    const MyPlot{ArgTypes} = Plot{myplot, ArgTypes}
 
-The type parameter of `Combined` contains the function instead of e.g. a
+The type parameter of `Plot` contains the function instead of e.g. a
 symbol. This way the mapping from `MyPlot` to `myplot` is safer and simpler.
 (The downside is we always need a function `myplot` - TODO: is this a problem?)
 
@@ -150,14 +156,18 @@ macro recipe(theme_func, Tsym::Symbol, args::Symbol...)
     funcname = esc(funcname_sym)
     expr = quote
         $(funcname)() = not_implemented_for($funcname)
-        const $(PlotType){$(esc(:ArgType))} = Combined{$funcname, $(esc(:ArgType))}
-        Base.show(io::IO, ::Type{<: $PlotType}) = print(io, $(string(Tsym)), "{...}")
         $(default_plot_signatures(funcname, funcname!, PlotType))
-        AbstractPlotting.default_theme(scene, ::Type{<: $PlotType}) = $(esc(theme_func))(scene)
+        let theme_func = $(esc(theme_func))
+            function $(PlotType)(user_attributes::Attributes, @nospecialize(args))
+                Plot()
+            end
+        end
         export $PlotType, $funcname, $funcname!
     end
-    if !isempty(args)
-        push!(expr.args, :($(esc(:(AbstractPlotting.argument_names)))(::Type{<: $PlotType}, len::Integer) = $args))
-    end
     expr
+end
+
+
+function insert_with_names(target, tuple, names)
+
 end

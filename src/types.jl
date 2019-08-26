@@ -5,9 +5,9 @@ so that's what they all have in common. This might be better expressed as traits
 """
 abstract type Transformable end
 
-abstract type AbstractPlot{Typ} <: Transformable end
+abstract type AbstractPlot <: Transformable end
 abstract type AbstractScene <: Transformable end
-abstract type ScenePlot{Typ} <: AbstractPlot{Typ} end
+abstract type ScenePlot <: AbstractPlot end
 
 const SceneLike = Union{AbstractScene, ScenePlot}
 # const Attributes = Dict{Symbol, Any}
@@ -263,7 +263,7 @@ struct Transformation <: Transformable
 end
 
 struct Attributes
-    attributes::Dict{Symbol, Node}
+    attributes::Dict{Symbol, Node{Any}}
 end
 Base.broadcastable(x::AbstractScene) = Ref(x)
 Base.broadcastable(x::AbstractPlot) = Ref(x)
@@ -273,7 +273,7 @@ Base.broadcastable(x::Attributes) = Ref(x)
 value_convert(x::Observables.AbstractObservable) = Observables.observe(x)
 value_convert(@nospecialize(x)) = x
 
-function value_convert(x::NTuple{N, Union{Any, Observables.AbstractObservable}}) where N
+function value_convert(x::NTuple{N, Any}) where N
     # with an observable at first place,
     # lift correctly dispatches to create a new Node that updates on any
     lift(Node(nothing), x...) do _, args...
@@ -295,6 +295,7 @@ Attributes(pairs::AbstractVector) = Attributes(Dict{Symbol, Node}(node_pairs.(pa
 Attributes(pairs::Iterators.Pairs) = Attributes(collect(pairs))
 Attributes(nt::NamedTuple) = Attributes(; nt...)
 attributes(x::Attributes) = getfield(x, :attributes)
+
 Base.keys(x::Attributes) = keys(x.attributes)
 Base.values(x::Attributes) = values(x.attributes)
 function Base.iterate(x::Attributes, state...)
@@ -323,17 +324,15 @@ function Base.merge!(target::Attributes, args::Attributes...)
 end
 Base.merge(target::Attributes, args::Attributes...) = merge!(copy(target), args...)
 
-@generated hasfield(x::T, ::Val{key}) where {T, key} = :($(key in fieldnames(T)))
-
-@inline function Base.getproperty(x::T, key::Symbol) where T <: Union{Attributes, Transformable}
-    if hasfield(x, Val(key))
+function Base.getproperty(x::T, key::Symbol) where T <: Union{Attributes, Transformable}
+    if Base.sym_in(key, x)
         getfield(x, key)
     else
         getindex(x, key)
     end
 end
-@inline function Base.setproperty!(x::T, key::Symbol, value) where T <: Union{Attributes, Transformable}
-    if hasfield(x, Val(key))
+function Base.setproperty!(x::T, key::Symbol, value) where T <: Union{Attributes, Transformable}
+    if Base.sym_in(key, x)
         setfield!(x, key, value)
     else
         setindex!(x, value, key)
@@ -369,7 +368,6 @@ function setindex!(x::Attributes, value::Node, key::Symbol)
 end
 
 function Base.show(io::IO,::MIME"text/plain", attr::Attributes)
-
     d = Dict()
     for p in pairs(attr.attributes)
         d[p.first] = to_value(p.second)
@@ -380,16 +378,24 @@ end
 
 Base.show(io::IO, attr::Attributes) = show(io, MIME"text/plain"(), attr)
 
-struct Combined{Typ, T} <: ScenePlot{Typ}
-    parent::SceneLike
+struct Plot <: ScenePlot
+    # function that can be called to create this plot type
+    plot_function::Any
+    parent::RefValue{Scene}
+    # The plots transformation
     transformation::Transformation
+    # The user given attributes
     attributes::Attributes
-    input_args::Tuple
-    converted::Tuple
-    plots::Vector{AbstractPlot}
+    # The normalized attributes. Makie allows lots of "magics", so e.g.
+    # one can pass in data as x, y, but they will ultimately become position = StructArray(x, y)
+    # These conversions are holw in normalized attributes.
+    # This will also contain filled in attributes from the theme
+    normalized_attributes::Attributes
 end
 
-theme(x::AbstractPlot) = x.attributes
+attributes(x::AbstractPlot) = getfield(x, :attributes)
+theme(x::AbstractPlot) = attributes(x)
+
 isvisible(x) = haskey(x, :visible) && to_value(x[:visible])
 
 #dict interface
@@ -414,8 +420,8 @@ get(x::AttributeOrPlot, key::Symbol, default) = get(()-> default, x, key)
 # This is a bit confusing, since for a plot it returns the attribute from the arguments
 # and not a plot for integer indexing. But, we want to treat plots as "atomic"
 # so from an interface point of view, one should assume that a plot doesn't contain subplots
-# Combined plots break this assumption in some way, but the way to look at it is,
-# that the plots contained in a Combined plot are not subplots, but _are_ actually
+# Plot plots break this assumption in some way, but the way to look at it is,
+# that the plots contained in a Plot plot are not subplots, but _are_ actually
 # the plot itself.
 getindex(plot::AbstractPlot, idx::Integer) = plot.converted[idx]
 getindex(plot::AbstractPlot, idx::UnitRange{<:Integer}) = plot.converted[idx]
@@ -424,14 +430,9 @@ Base.length(plot::AbstractPlot) = length(plot.converted)
 
 
 function getindex(x::AbstractPlot, key::Symbol)
-    argnames = argument_names(typeof(x), length(x.converted))
-    idx = findfirst(isequal(key), argnames)
-    if idx == nothing
-        return x.attributes[key]
-    else
-        x.converted[idx]
-    end
+    return attributes(x)[key]
 end
+
 function getindex(x::AttributeOrPlot, key::Symbol, key2::Symbol, rest::Symbol...)
     dict = to_value(x[key])
     dict isa Attributes || error("Trying to access $(typeof(dict)) with multiple keys: $key, $key2, $(rest)")
@@ -445,42 +446,41 @@ function setindex!(x::AttributeOrPlot, value, key::Symbol, key2::Symbol, rest::S
 end
 
 function setindex!(x::AbstractPlot, value, key::Symbol)
-    argnames = argument_names(typeof(x), length(x.converted))
-    idx = findfirst(isequal(key), argnames)
-    if idx == nothing && haskey(x.attributes, key)
-        return x.attributes[key][] = value
-    elseif !haskey(x.attributes, key)
-        x.attributes[key] = to_node(value)
-    else
-        return setindex!(x.converted[idx], value)
+    attr = attributes(x)
+    if haskey(attr, key)
+        return attr[key][] = value
+    elseif !haskey(attr, key)
+        attr[key] = to_node(value)
     end
 end
 
 function setindex!(x::AbstractPlot, value::Node, key::Symbol)
-    argnames = argument_names(typeof(x), length(x.converted))
-    idx = findfirst(isequal(key), argnames)
-    if idx == nothing
-        if haskey(x, key)
-            # error("You're trying to update an attribute node with a new node. This is not supported right now.
-            # You can do this manually like this:
-            # lift(val-> attributes[$key] = val, node::$(typeof(value)))
-            # ")
-            return x.attributes[key] = value
-        else
-            return x.attributes[key] = value
-        end
+    if haskey(x, key)
+        # error("You're trying to update an attribute node with a new node. This is not supported right now.
+        # You can do this manually like this:
+        # lift(val-> attributes[$key] = val, node::$(typeof(value)))
+        # ")
+        return attributes(x)[key] = value
     else
-        return setindex!(x.converted[idx], value)
+        return attributes(x)[key] = value
     end
 end
-parent(x::AbstractPlot) = x.parent
+
+function parent(x::AbstractPlot)
+    ref = getfield(x, :parent)
+    if isassigned(ref)
+        return ref[]
+    else
+        return nothing
+    end
+end
 
 
 """
 Remove `combined` from the current parent, and add it to a new subscene of the
 parent scene. Returns the new parent.
 """
-function detach!(x::Combined)
+function detach!(x::Plot)
     p1 = parent(x)
     filter!(p-> p != x, p1.plots) # remove from parent
 
@@ -497,18 +497,12 @@ function func2string(func::F) where F <: Function
     string(F.name.mt.name)
 end
 
-plotkey(::Type{<: AbstractPlot{Typ}}) where Typ = Symbol(lowercase(func2string(Typ)))
-plotkey(::T) where T <: AbstractPlot = plotkey(T)
+function plotkey(p::AbstractPlot)
+    return Symbol(lowercase(func2string(plotfunc(p))))
+end
 
-plotfunc(::Type{<: AbstractPlot{Func}}) where Func = Func
-plotfunc(::T) where T <: AbstractPlot = plotfunc(T)
+plotfunc(p::AbstractPlot) = getfield(p, :plot_function)
 plotfunc(f::Function) = f
-
-func2type(x::T) where T = func2type(T)
-func2type(x::Type{<: AbstractPlot}) = x
-func2type(f::Function) = Combined{f}
-
-
 
 """
 Billboard attribute to always have a primitive face the camera.
@@ -533,26 +527,26 @@ export Vecf0, Pointf0
 const NativeFont = Vector{Ptr{FreeType.FT_FaceRec}}
 
 """
-`PlotSpec{P<:AbstractPlot}(args...; kwargs...)`
+`Blurgh{P<:AbstractPlot}(args...; kwargs...)`
 
 Object encoding positional arguments (`args`), a `NamedTuple` of attributes (`kwargs`)
 as well as plot type `P` of a basic plot.
 """
-struct PlotSpec{P<:AbstractPlot}
+struct Blurgh{P<:AbstractPlot}
     args::Tuple
     kwargs::NamedTuple
-    PlotSpec{P}(args...; kwargs...) where {P<:AbstractPlot} = new{P}(args, values(kwargs))
+    Blurgh{P}(args...; kwargs...) where {P<:AbstractPlot} = new{P}(args, values(kwargs))
 end
 
-PlotSpec(args...; kwargs...) = PlotSpec{Combined{Any}}(args...; kwargs...)
+Blurgh(args...; kwargs...) = Blurgh{Blurgh{Any}}(args...; kwargs...)
 
-Base.getindex(p::PlotSpec, i::Int) = getindex(p.args, i)
-Base.getindex(p::PlotSpec, i::Symbol) = getproperty(p.kwargs, i)
+Base.getindex(p::Blurgh, i::Int) = getindex(p.args, i)
+Base.getindex(p::Blurgh, i::Symbol) = getproperty(p.kwargs, i)
 
 to_plotspec(::Type{P}, args; kwargs...) where {P} =
-    PlotSpec{P}(args...; kwargs...)
+    Blurgh{P}(args...; kwargs...)
 
-to_plotspec(::Type{P}, p::PlotSpec{S}; kwargs...) where {P, S} =
-    PlotSpec{plottype(P, S)}(p.args...; p.kwargs..., kwargs...)
+to_plotspec(::Type{P}, p::Blurgh{S}; kwargs...) where {P, S} =
+    Blurgh{plottype(P, S)}(p.args...; p.kwargs..., kwargs...)
 
-plottype(::PlotSpec{P}) where {P} = P
+plottype(::Blurgh{P}) where {P} = P
