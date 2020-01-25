@@ -326,13 +326,14 @@ TODO add description
 ## Theme
 $(ATTRIBUTES)
 """
-@recipe(Series, series) do scene
+@recipe(Series, xs, ys) do scene
     Theme(
         seriescolors = :Set1,
         seriestype = :lines
     )
 end
-convert_arguments(::Type{<: Series}, A::AbstractMatrix{<: Number}) = (A,)
+convert_arguments(::Type{<: Series}, A::AbstractMatrix{<: Number}) = (repeat(collect(axes(A)[1], size(A)[2]), A)
+convert_arguments(::Type{<: Series}, x::AbstractVector{<: Number}, y::AbstractMatrix{<: Number}) = (repeat(x, size(y)[2])
 function plot!(sub::Series)
     A = sub[1]
     colors = map_once(sub[:seriescolors], A) do colors, A
