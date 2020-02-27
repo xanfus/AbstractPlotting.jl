@@ -125,9 +125,13 @@ function plot!(plot::Mesh{<: Tuple{<: AbstractVector{P}}}) where P <: AbstractMe
         lift(meshes, color_node, attributes.colormap, attributes.colorrange) do meshes, colors, cmap, crange
             # Color are reals, so we need to transform it to colors first
             real_colors = if colors isa AbstractVector{<:Number}
-                interpolated_getindex.((to_colormap(cmap),), colors, (crange,))
+                if (-)(crange...) ≈ 0.0
+                    fill(cmap[1], length(colors))
+                else
+                    interpolated_getindex.((to_colormap(cmap),), colors, (crange,))
+                end
             else
-                to_color.(colors)
+                to_colormap(colors)
             end
             meshes = GeometryTypes.add_attribute.(GLNormalMesh.(meshes), real_colors)
             return merge(meshes)
@@ -473,8 +477,6 @@ function plot!(p::Arc)
     end
     lines!(p, Theme(p), positions)
 end
-
-
 
 function AbstractPlotting.plot!(plot::Plot(AbstractVector{<: Complex}))
     plot[:axis, :labels] = ("Re(x)", "Im(x)")
