@@ -36,12 +36,12 @@ $(ATTRIBUTES)
         transparency = false,
     )
 end
+
 convert_arguments(::Type{<: Poly}, v::AbstractVector{<: VecTypes}) = (v,)
 convert_arguments(::Type{<: Poly}, v::AbstractVector{<: AbstractVector{<: VecTypes}}) = (v,)
 convert_arguments(::Type{<: Poly}, v::AbstractVector{<: Union{Circle, Rectangle, HyperRectangle}}) = (v,)
 convert_arguments(::Type{<: Poly}, args...) = ([convert_arguments(Scatter, args...)[1]],)
 convert_arguments(::Type{<: Poly}, vertices::AbstractArray, indices::AbstractArray) = convert_arguments(Mesh, vertices, indices)
-
 
 function plot!(plot::Poly{<: Tuple{Union{AbstractMesh, GeometryPrimitive}}})
     mesh!(

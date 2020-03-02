@@ -2,7 +2,7 @@ using Serialization
 using FreeTypeAbstraction: iter_or_array
 
 mutable struct TextureAtlas
-    rectangle_packer::RectanglePacker
+    rectangle_packer::GuillotinePacker
     mapping::Dict{Any, Int} # styled glyph to index in sprite_attributes
     index::Int
     data::Matrix{Float16}
@@ -40,7 +40,7 @@ end
 
 function TextureAtlas(initial_size = TEXTURE_RESOLUTION[])
     return TextureAtlas(
-        RectanglePacker(SimpleRectangle(0, 0, initial_size...)),
+        GuillotinePacker(initial_size...),
         Dict{Any, Int}(),
         1,
         zeros(Float16, initial_size...),
@@ -63,7 +63,7 @@ begin #basically a singleton for the textureatlas
     function get_cache_path()
         return abspath(
             first(Base.DEPOT_PATH), "makiegallery", ".cache",
-            "texture_atlas_$(CACHE_RESOLUTION_PREFIX[]).jls"
+            "texture_atlas_$(CACHE_RESOLUTION_PREFIX[])_v2.jls"
         )
     end
     const _default_font = NativeFont[]
@@ -188,16 +188,23 @@ end
 
 function insert_glyph!(atlas::TextureAtlas, glyph::Char, font::NativeFont)
     return get!(atlas.mapping, (glyph, font)) do
-        uv, extent, width_nopadd, pad = render(atlas, glyph, font)
+        uv, extent, width_nopadd, pad, reversed = render(atlas, glyph, font)
         tex_size = Vec2f0(size(atlas.data))
-        uv_start = Vec2f0(uv.x, uv.y)
-        uv_width = Vec2f0(uv.w, uv.h)
+        uv_start = minimum(uv)
+        uv_width = widths(uv)
         real_start = uv_start .+ pad .- 1 # include padding
         # padd one additional pixel
         relative_start = real_start ./ tex_size # use normalized texture coordinates
         relative_width = (real_start .+ width_nopadd .+ 2) ./ tex_size
-
-        uv_offset_width = Vec4f0(relative_start..., relative_width...)
+        if reversed
+            xstart = relative_start[1] + relative_width[1]
+            ystart = relative_start[2]
+            w = -relative_width[1]
+            h = relative_width[2]
+            uv_offset_width = Vec4f0(xstart, ystart, w, h)
+        else
+            uv_offset_width = Vec4f0(relative_start..., relative_width...)
+        end
         i = atlas.index
         push!(atlas.attributes, uv_offset_width)
         push!(atlas.scale, Vec2f0(width_nopadd .+ 2))
@@ -219,13 +226,13 @@ function sdistancefield(img, downsample = 8, pad = 8*downsample)
     w, h = w + 2pad, h + 2pad #pad this, to avoid cuttoffs
 
     in_or_out = Matrix{Bool}(undef, w, h)
-    @inbounds for i=1:w, j=1:h
-        x, y = i-pad, j-pad
+    @inbounds for i in 1:w, j in 1:h
+        x, y = i - pad, j - pad
         in_or_out[i,j] = checkbounds(Bool, img, x, y) && img[x,y] > 0.5 * 255
     end
     yres, xres = div(w, downsample), div(h, downsample)
     sd = sdf(in_or_out, xres, yres)
-    Float16.(sd)
+    return Float16.(sd)
 end
 
 const font_render_callbacks = Function[]
@@ -247,15 +254,19 @@ function render(atlas::TextureAtlas, glyph::Char, font, downsample = 5, pad = 8)
     bitmap, extent = renderface(font, glyph, DF*downsample)
     sd = sdistancefield(bitmap, downsample, downsample*pad)
     sd = sd ./ downsample;
-    extent = (extent ./ Vec2f0(downsample))
-    rect = SimpleRectangle(0, 0, size(sd)...)
+    rect = Rect(0, 0, size(sd)...)
     uv = push!(atlas.rectangle_packer, rect) #find out where to place the rectangle
+    extent = (extent ./ Vec2f0(downsample))
     uv == nothing && error("texture atlas is too small. Resizing not implemented yet. Please file an issue at GLVisualize if you encounter this") #TODO resize surface
-    atlas.data[uv.area] = sd
-    for f in font_render_callbacks
-        f(sd, uv.area)
+    reversed = Vec(size(sd)) != widths(uv) # did the packer flip the rect?
+    if reversed
+        sd = rotr90(sd)
     end
-    uv.area, extent, Vec2f0(size(bitmap)) ./ (downsample), pad
+    atlas.data[uv] = sd
+    for f in font_render_callbacks
+        f(sd, uv)
+    end
+    return uv, extent, Vec2f0(size(bitmap)) ./ (downsample), pad, reversed
 end
 
 make_iter(x) = repeated(x)
