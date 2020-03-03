@@ -190,24 +190,20 @@ function insert_glyph!(atlas::TextureAtlas, glyph::Char, font::NativeFont)
     return get!(atlas.mapping, (glyph, font)) do
         uv, extent, width_nopadd, pad, reversed = render(atlas, glyph, font)
         tex_size = Vec2f0(size(atlas.data))
-        uv_start = minimum(uv)
-        uv_width = widths(uv)
-        real_start = uv_start .+ pad .- 1 # include padding
         # padd one additional pixel
-        relative_start = real_start ./ tex_size # use normalized texture coordinates
-        relative_width = (real_start .+ width_nopadd .+ 2) ./ tex_size
+        x, y = minimum(uv) ./ tex_size # use normalized texture coordinates
+        xmax, ymax = maximum(uv) ./ tex_size
         if reversed
-            xstart = relative_start[1] + relative_width[1]
-            ystart = relative_start[2]
-            w = -relative_width[1]
-            h = relative_width[2]
-            uv_offset_width = Vec4f0(xstart, ystart, w, h)
+            w, h = widths(uv)
+            scale = (h, w)
+            uv_offset_width = Vec4f0(ymax, x, y, xmax)
         else
-            uv_offset_width = Vec4f0(relative_start..., relative_width...)
+            scale = widths(uv)
+            uv_offset_width = Vec4f0(x, y, xmax, ymax)
         end
         i = atlas.index
         push!(atlas.attributes, uv_offset_width)
-        push!(atlas.scale, Vec2f0(width_nopadd .+ 2))
+        push!(atlas.scale, scale)
         push!(atlas.extent, extent)
         atlas.index = i + 1
         return i
@@ -246,20 +242,20 @@ function remove_font_render_callback!(f)
 end
 
 function render(atlas::TextureAtlas, glyph::Char, font, downsample = 5, pad = 8)
-    #select_font_face(cc, font)
     if glyph == '\n' # don't render  newline
         glyph = ' '
     end
     DF = DOWN_SAMPLE_FACTOR[]
-    bitmap, extent = renderface(font, glyph, DF*downsample)
-    sd = sdistancefield(bitmap, downsample, downsample*pad)
-    sd = sd ./ downsample;
+    bitmap, extent = renderface(font, glyph, DF * downsample)
+    sd = sdistancefield(bitmap, downsample, downsample * pad)
+    sd = sd ./ downsample
     rect = Rect(0, 0, size(sd)...)
     uv = push!(atlas.rectangle_packer, rect) #find out where to place the rectangle
-    extent = (extent ./ Vec2f0(downsample))
     uv == nothing && error("texture atlas is too small. Resizing not implemented yet. Please file an issue at GLVisualize if you encounter this") #TODO resize surface
+    extent = extent ./ Vec2f0(downsample)
     reversed = Vec(size(sd)) != widths(uv) # did the packer flip the rect?
     if reversed
+        println(glyph, " ", widths(uv), " ", size(sd))
         sd = rotr90(sd)
     end
     atlas.data[uv] = sd
