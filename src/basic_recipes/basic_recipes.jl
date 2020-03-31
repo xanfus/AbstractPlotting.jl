@@ -1228,3 +1228,33 @@ function plot!(p::Spy)
 
     lines!(p, rect, color = p.framecolor, linewidth = p.framesize)
 end
+
+"""
+    bezier(points)
+    bezier(x, y, [z])
+
+Draws a Bezier curve of order `length(points)` between the given points.
+
+If there is a `NaN` in the input, the curve should end at that point, and another
+should be drawn from the next point.
+"""
+@recipe(Bezier, positions) do scene
+    default_theme(scene, Lines)
+end
+
+conversion_trait(::Type{<: Bezier}) = PointBased()
+
+function bezier_value(pts::AbstractVector{<: Real}, t::Real)
+    val = 0.0
+    n = length(pts) - 1
+    for (i, p) in enumerate(pts)
+        val += p * binomial(n, i - 1) * (1 - t)^(n - i + 1) * t^(i - 1)
+    end
+    val
+end
+
+function plot!(plot::Bezier)
+    # separate NaN-separated vectors
+    # use https://github.com/JuliaPlots/Plots.jl/blob/b258c9d8c84bb8ffba8b1d25cd754c464a333dec/src/utils.jl#L57-L112
+    # draw the curve
+end
