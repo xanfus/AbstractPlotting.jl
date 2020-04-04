@@ -206,6 +206,9 @@ function to_ndim(T::Type{<: VecTypes{N, ET}}, vec::VecTypes{N2}, fillval) where 
     end)
 end
 
+to_ndim(T::Type{<: VecTypes{N, ET}}, vec::VecTypes{N}, fillval) where {N, ET} = vec
+
+
 dim3(x) = ntuple(i-> x, Val(3))
 dim3(x::NTuple{3, Any}) = x
 
