@@ -205,5 +205,12 @@ function __init__()
 end
 
 
+# In Julia 1.5, the optimization level can be changed on a per-module basis.
+# With -O1, the time to first plot can be decreased by quite a bit; 
+# however, this comes with the caveat that later plots may not be as fast.
+
+if isdefined(Base, :Experimental) && isdefined(Base.Experimental, Symbol("@optlevel"))
+    @eval Base.Experimental.@optlevel 1
+end
 
 end # module
