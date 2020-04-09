@@ -793,6 +793,58 @@ function data_limits(x::Contour{<: Tuple{X, Y, Z}}) where {X, Y, Z}
     xyz_boundingbox(to_value.((x[1], x[2]))...)
 end
 
+@recipe(ContourF) do scene
+    default = default_theme(scene)
+    pop!(default, :color)
+    Theme(;
+        default...,
+        color = nothing,
+        colormap = theme(scene, :colormap),
+        colorrange = AbstractPlotting.automatic,
+        levels = 5,
+        linewidth = 1.0,
+    )
+end
+
+function plot!(plot::T) where T <: ContourF
+    # Extract arguments from the plot.
+    x, y, z = plot[1:3]
+    # Extract color-linked attributes from the plot.
+    cattrs = @extract plot (color, colormap, colorrange, alpha)
+    # Compute the extrema of the z-values.
+    zrange = lift(nan_extrema, z)
+    # Materialize the contour levels.
+    levels = lift(to_levels, plot.levels, zrange)
+    end
+    # Replace the color range with the extrema of the levels,
+    # if it is not already present.
+    replace_automatic!(plot, :colorrange) do
+        lift(nan_extrema, levels)
+    end
+    # Extract discrete colors from the levels.
+    level_colors = lift(color_per_level, args..., levels)
+    # Now, we get to the meat of the matter - calculating the contour levels.
+    result = lift(x, y, z, levels) do x, y, z, levels
+        # We use Contour.jl to compute the isolines at those levels.
+        contours = Contours.contours(x, y, z, eltype(z).(levels))
+        # Now, we iterate through each contour level.
+        for (color, c) in zip(cols, Contours.levels(contours))
+            for elem in Contours.lines(c)
+                # First, we populate the actual contour lines.
+                append!(linevec, elem.vertices)
+                push!(linevec, Point2f0(NaN32))
+                append!(linecolors, fill(color, length(elem.vertices) + 1))
+                # Now, we have to generate meshes.  This is a little tricky,
+                # since we aren't guaranteed that the contour is closed.
+                # So, we can find the value to either side of the line,
+                # and fill in the side which is higher than that contour.
+                # TODO actually implement this
+                # TODO return a vector of lines, linecolors, meshes, meshcolors
+            end
+        end
+    end
+end
+
 """
     VolumeSlices
 
