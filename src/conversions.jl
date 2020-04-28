@@ -15,7 +15,7 @@ to_color(color) = convert_attribute(color, key"color"())
 """
     to_colormap(cm[, N = 20])
 
-Converts a colormap `cm` symbol (e.g. `:Spectral`) to a colormap RGB array, where `N` specifies the number of color points.
+Converts a colormap `cm` symbol (e.g. `:Spectral`) to a colormap sampler, where `N` specifies the number of color points.
 """
 to_colormap(color) = convert_attribute(color, key"colormap"())
 to_rotation(color) = convert_attribute(color, key"rotation"())
@@ -728,8 +728,11 @@ const colorbrewer_8color_names = String.([
     :Set2
 ])
 
-# throw an error i
-const plotutils_names = PlotUtils.clibraries() .|> PlotUtils.cgradients |> x -> vcat(x...) .|> String
+const plotutils_names = String.(union(
+    keys(PlotUtils.ColorSchemes.colorschemes),
+    keys(PlotUtils.COLORSCHEME_ALIASES),
+    keys(PlotUtils.MISC_COLORSCHEMES)
+))
 
 const all_gradient_names = Set(vcat(plotutils_names, colorbrewer_8color_names))
 
@@ -752,8 +755,14 @@ struct Reverse{T}
     data::T
 end
 
+function convert_attribute(r::Reverse{<: Union{Symbol, AbstractString}}, ::key"colormap", n::Integer=20)
+    cm = to_colormap(r.data, n)
+    reverse!(cm.colors)
+    return cm
+end
+
 function convert_attribute(r::Reverse, ::key"colormap", n::Integer=20)
-    reverse(to_colormap(r.data, n))
+    return to_colormap(reverse(r.data), n)
 end
 
 function convert_attribute(cs::ColorScheme, ::key"colormap", n::Integer=20)
@@ -768,8 +777,16 @@ An `AbstractVector{T}` with any object that [`to_color`](@ref) accepts.
 convert_attribute(cm::AbstractVector, ::key"colormap", n::Int=length(cm)) = to_colormap(to_color.(cm), n)
 
 function convert_attribute(cm::AbstractVector{<: Colorant}, ::key"colormap", n::Int=length(cm))
-    colormap = length(cm) == n ? cm : resample(cm, n)
-    return el32convert(colormap)
+    colorvec = el32convert.(length(cm) == n ? cm : resample(cm, n))
+    return sampler(colorvec, LinRange(0, 1, n))
+end
+
+function convert_attribute(cm::PlotUtils.ContinuousColorGradient, ::key"colormap")
+    return sampler(cm.colors, cm.values; interpolation = Linear)
+end
+
+function convert_attribute(cm::PlotUtils.CategoricalColorGradient, ::key"colormap")
+    return sampler(cm.colors, cm.values; interpolation = Nearest)
 end
 
 """
@@ -780,11 +797,11 @@ function convert_attribute(cs::Union{Tuple, Pair}, ::key"colormap", n::Int=2)
 end
 
 function convert_attribute(cs::Tuple{<: Union{Symbol, AbstractString}, Real}, ::key"colormap", n::Int=30)
-    return RGBAf0.(to_colormap(cs[1]), cs[2]) # We need to rework this to conform to the backend interface.
+    return sampler(cs[1], n; alpha = cs[2])
 end
 
 function convert_attribute(cs::NamedTuple{(:colormap, :alpha, :n), Tuple{Union{Symbol, AbstractString}, Real, Int}}, ::key"colormap")
-    return RGBAf0.(to_colormap(cs.colormap, cs.n), cs.alpha)
+    return sampler(cs.colormap, cs.n; alpha = cs.alpha)
 end
 
 
@@ -800,7 +817,7 @@ function convert_attribute(cs::Union{String, Symbol}, ::key"colormap", n::Intege
         if cs_string in colorbrewer_8color_names # special handling for 8 color only
             return to_colormap(ColorBrewer.palette(cs_string, 8), n)
         else                                    # cs_string must be in plotutils_names
-            return RGBf0.(PlotUtils.cvec(Symbol(cs), n))
+            return sampler(cs, n)
         end
     else
         error("There is no color gradient named: $cs")
