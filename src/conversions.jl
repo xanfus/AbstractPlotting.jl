@@ -567,7 +567,6 @@ end
 convert_attribute(c::Colorant, ::key"color") = convert(RGBA{Float32}, c)
 convert_attribute(c::Symbol, k::key"color") = convert_attribute(string(c), k)
 function convert_attribute(c::String, ::key"color")
-    c in all_gradient_names && return to_colormap(c)
     parse(RGBA{Float32}, c)
 end
 
